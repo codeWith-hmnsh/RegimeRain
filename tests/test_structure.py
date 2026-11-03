@@ -114,7 +114,7 @@ def test_cli_config_prints_hash(capsys):
 
 def test_cli_unbuilt_command_exits_2():
     with pytest.raises(SystemExit) as e:
-        cli.main(["fit-final"])
+        cli.main(["run", "--source", "hres"])
     assert e.value.code == 2
 
 

@@ -18,7 +18,6 @@ from regimerain.config import config_sha256, load_config
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 PLANNED = {
-    "fit-final": "MODEL_SPEC section 17 (final fit)",
     "run --source hres": "docs/BACKEND_BUILD_PLAN.md phase B4 (model set on an HRES init)",
     "run --source gfs": "docs/BACKEND_BUILD_PLAN.md phase B5 / MODEL_SPEC section 18 (live GFS run)",
 }
@@ -228,6 +227,13 @@ def cmd_publish(cfg: dict, args) -> int:
     return 0
 
 
+def cmd_fit_final(cfg: dict, args) -> int:
+    from regimerain.final import fit_final
+    out = fit_final(cfg)
+    print(f"model set -> {out}")
+    return 0
+
+
 def cmd_serve(cfg: dict, args) -> int:
     import uvicorn
     from regimerain.api.app import create_app
@@ -259,7 +265,8 @@ def main(argv: list[str] | None = None) -> int:
         cfg["seasons"] = parse_range(args.seasons)
     handlers = {"config": cmd_config, "selftest": cmd_selftest, "ingest": cmd_ingest, "static": cmd_static,
                 "label": cmd_label, "features": cmd_features, "backtest": cmd_backtest, "report": cmd_report,
-                "run": cmd_run, "publish": cmd_publish, "contract": cmd_contract, "serve": cmd_serve}
+                "run": cmd_run, "publish": cmd_publish, "contract": cmd_contract, "serve": cmd_serve,
+                "fit-final": cmd_fit_final}
     if args.command in handlers:
         return handlers[args.command](cfg, args)
     raise NotBuiltYet(args.command)

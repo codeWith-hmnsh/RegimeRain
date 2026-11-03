@@ -65,7 +65,7 @@ def cfg_file(tmp_path):
         "seasons": SEASONS, "leads": [1], "num_threads": 2,
         "paths": {k: str(tmp_path / v) for k, v in {"raw": "raw", "static": "data/static", "table": "data/table",
                                                    "cache": "cache", "reports": "reports", "imd": "imd",
-                                                   "runs": "runs"}.items()},
+                                                   "runs": "runs", "models": "models"}.items()},
         "grid": {"rain_box": [10.0, 14.0, 70.0, 75.0]},
         "labels": {"climatology": "self", "cmz_box": [10, 14, 70, 75], "depression_radius_km": 150},
         "features": {"llj_box": [8, 12, 68, 72], "trough_lon_band": [72, 76], "trough_lat_band": [9, 15],
@@ -147,3 +147,23 @@ def test_pilot_end_to_end(cfg_file, capsys):
         assert man["provenance"]["held_out_season"] in SEASONS and man["truth_source"].startswith("IMD")
         ver = json.loads((web / "verification.json").read_text())
         assert ver["synthetic"] is False and ver["entries"] and ver["reliability"]
+    # fit-final: every model refit on all seasons, hashed; the loaded set predicts sane values
+    run(["fit-final"], cfgs)
+    from regimerain.final import ModelSet
+    model_dir = next((root / "models").iterdir())
+    for f in ("classifier/booster.txt", "classifier/temperature.json", "qm/experts.parquet", "exceed/64.5.iso.pkl",
+              "gate/skill_gate.parquet", "static.npz", "config.yaml", "feature_list.json", "model_card.json"):
+        assert (model_dir / f).exists(), f
+    ms = ModelSet(model_dir)
+    rows = pd.read_parquet(root / "data" / "table" / "lead=1" / "season=2020" / "part.parquet")
+    rows = rows[rows.init == rows.init.iloc[0]].assign(lead=np.int16(1))
+    out = ms.predict(rows)
+    P = out[["p_active", "p_break", "p_depression", "p_normal"]].to_numpy()
+    assert np.allclose(P.sum(axis=1), 1, atol=1e-5) and (out.B >= 0).all() and (out.A >= 0).all()
+    assert (out["p_exc_115.6"] <= out["p_exc_64.5"] + 1e-7).all()
+    card = json.loads((model_dir / "model_card.json").read_text())
+    assert card["model_set_id"] == model_dir.name and card["classifier"]["rounds"] >= 10
+    with open(model_dir / "config.yaml", "a", encoding="utf-8") as fh:
+        fh.write("# edited after fit-final\n")
+    with pytest.raises(ValueError, match="changed since fit-final"):
+        ModelSet(model_dir)

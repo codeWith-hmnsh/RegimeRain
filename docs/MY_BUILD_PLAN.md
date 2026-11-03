@@ -68,8 +68,7 @@ Settings every time: *Accelerator: None (CPU)*, *Internet: On*. Long runs: *Save
 | 2c | `FOLDS="2021,2022"` | same | `ps26080-folds-c` |
 | 3 | `STAGE="final"` | all of the above | `ps26080-models` |
 
-Note: `final` runs `report`, then `fit-final`. `fit-final` is not built yet (CLI exits 2). Until I build it
-(Step 6), the report is the useful output of run 3.
+Run 3 (`final`) runs `report` (scores + skill gate), then `fit-final` (the model set for live runs).
 
 What gets trained here: the regime classifier (LightGBM, 4 classes) and the quantile-mapping correctors, once per
 held-out season.
@@ -100,7 +99,7 @@ Spec: `docs/MODEL_SPEC.md` §14. Per region × regime × lead: use the correctio
 
 Spec: `docs/BACKEND_BUILD_PLAN.md` B2–B4.
 
-- [ ] `fit-final` (MODEL_SPEC §17)
+- [x] `fit-final` (MODEL_SPEC §17): `models/<id>/` with hashes; `ModelSet` refuses edited files
 - [x] Replay producer: real held-out days (a depression day, a break day, an active day) → `mvp/web` (code done; run it once the Kaggle backtest cache is downloaded)
 - [x] `regimerain serve` (FastAPI) serves the API + built web app (smoke test passes through it)
 - [ ] The synthetic banner is gone for real runs
