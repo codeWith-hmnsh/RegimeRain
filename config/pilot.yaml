@@ -1,0 +1,13 @@
+# Pilot for the SIH idea round (30 Sep 2026): 3 seasons, Day 1 and Day 3, basic static layers.
+# Use: --config config/default.yaml --config config/pilot.yaml
+# Simplifications (stated in the report): active/break climatology from the pilot seasons themselves,
+# approximate zones, no terrain/coast classes, IBTrACS depressions only, variants raw/A/B only.
+seasons: [2019, 2020, 2021]
+leads: [1, 3]
+labels:
+  climatology: self
+classifier:
+  params:
+    num_boost_round: 600
+verify:
+  bootstrap_B: {fast: 200, full: 1000}

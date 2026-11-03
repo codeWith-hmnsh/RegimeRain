@@ -1,0 +1,20 @@
+# environments
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# pipeline outputs (large, reproducible; see TECHNICAL_SPEC.md section 8)
+data/
+cache/
+models/
+/runs/
+reports/
+logs/
+
+# notebooks checkpoints
+.ipynb_checkpoints/
+
+# other teams' decks and the SIH template: reference only, not ours to publish
+templates-and-examples/

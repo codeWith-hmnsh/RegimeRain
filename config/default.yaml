@@ -1,0 +1,109 @@
+# Default configuration. Reference: docs/MODEL_SPEC.md section 19.
+# Platform overrides (Colab notebook, config/kaggle.yaml) change only paths.*, num_threads,
+# exceed.per_lead and classifier.cell_stride. Keys under `paths` are excluded from config_sha256.
+seed: 20260929
+mode: fast                 # fast | full
+num_threads: 8             # MUST be identical for every fold and the final fit (LightGBM determinism)
+seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022]
+leads: [1, 2, 3, 4, 5]
+
+paths:
+  raw: data/raw
+  imd: data/raw/imd
+  static: data/static
+  table: data/table
+  cache: cache
+  models: models
+  reports: reports
+  runs: runs
+  districts: data/inputs/districts
+  dem: data/inputs/dem
+
+grid:
+  rain_box: [6.5, 38.5, 66.5, 100.0]
+  dyn_box: [0.0, 40.0, 40.0, 110.0]
+  res_deg: 0.25
+
+sources:
+  hres_url: gs://weatherbench2/datasets/hres/2016-2022-0012-1440x721.zarr   # confirmed Phase 0 (docs/PHASE0_FINDINGS.md)
+  hres_precip_kind: cumulative   # confirmed Phase 0 run 3: total_precipitation is accumulated from init (m)
+  hres_batch_inits: 4            # inits loaded per batch during ingest (memory vs speed)
+  rmm_file: null                 # local copy of BOM rmm.74toRealtime.txt (BOM blocks cloud IPs); env RMM_FILE overrides
+  truth: imd                     # imd | chirps
+  imd_date_offset_days: 0        # set by scripts/imd_offset_check (MODEL_SPEC 4.3)
+  imd_climatology: [1981, 2015]
+
+static:
+  oro_elev_std_m: 150
+  oro_windward: 0.02
+  oro_min_elev_m: 300
+  coastal_km: 50
+  flow_to_deg: 70
+
+labels:
+  climatology: imd             # imd = sources.imd_climatology years | self = the seasons themselves (pilot)
+  cmz_box: [18, 28, 65, 88]
+  ab_threshold_sigma: 1.0
+  ab_min_run_days: 3
+  depression_radius_km: 500
+  day_depression_min_frac: 0.05
+  dry_threshold_mm: 0.1
+
+features:
+  llj_box: [5, 15, 50, 70]
+  trough_lon_band: [75, 85]
+  trough_lat_band: [15, 32]
+  bob_box: [15, 25, 80, 95]
+  vort_max_filter_cells: 37
+
+classifier:
+  cell_stride: {fast: 2, full: 1}
+  crossfit_groups: {fast: 3, full: 6}
+  smooth_size: 3
+  params:
+    objective: multiclass
+    num_class: 4
+    learning_rate: 0.05
+    num_leaves: 63
+    min_data_in_leaf: 500
+    feature_fraction: 0.8
+    bagging_fraction: 0.7
+    bagging_freq: 1
+    lambda_l2: 1.0
+    num_boost_round: 2000
+    deterministic: true
+    verbose: -1
+
+error_regimes:
+  k_range: [4, 8]
+  pca_variance: 0.90
+  n_boot_stability: 20
+
+qm:
+  quantiles: 1001
+  tail_q: 0.95
+  min_exceedances: 50
+  xi_bounds: [0.0, 0.4]
+  n0_days: 30
+  p_min: 0.1
+  p_hard: 0.8
+
+exceed:
+  thresholds: [64.5, 115.6]
+  per_lead: false            # true = one model per lead (lower peak RAM; auto-set on small Colab runtimes)
+  decision_levels: {likely: 0.5, possible: 0.3}
+  params: {learning_rate: 0.05, num_leaves: 63, min_data_in_leaf: 1000}
+
+condmean:
+  enabled: true
+  tweedie_variance_power: 1.5
+
+verify:
+  thresholds: [2.5, 15.6, 64.5, 115.6]
+  fss_windows: [1, 3, 5, 9]
+  bootstrap_B: {fast: 300, full: 1000}
+  bootstrap_block_days: 5
+
+gate:
+  min_days: 30
+  min_heavy_events_for_ets: 10

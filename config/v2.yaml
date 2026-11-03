@@ -1,0 +1,11 @@
+# Pilot v2: all 7 HRES seasons (each fold trains on 5), IMD 1981-2015 climatology for active/break labels.
+# Use: --config config/default.yaml --config config/v2.yaml --config <platform paths yaml>
+seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022]
+leads: [1, 3]
+labels:
+  climatology: imd
+classifier:
+  params:
+    num_boost_round: 800
+verify:
+  bootstrap_B: {fast: 200, full: 1000}

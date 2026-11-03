@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regimerain"
+version = "0.1.0"
+description = "SIH26080: regime-aware AI post-processing of monsoon rainfall forecasts"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "pandas>=2.0",
+    "pyarrow>=12",
+    "xarray>=2023.6,<2026.9",   # 2026.9 passes zarr_format= to zarr.open_group; zarr 2 (data extra) rejects it
+    "pyyaml>=6",
+    "pydantic>=2",              # regimerain/runs/contract.py (web contract)
+]
+
+[project.optional-dependencies]
+data = ["zarr>=2.16,<3", "gcsfs", "netcdf4", "imdlib", "rioxarray", "geopandas", "shapely"]
+ml = ["lightgbm>=4.0", "scikit-learn>=1.3"]
+live = ["herbie-data", "cfgrib", "eccodes"]
+api = ["fastapi", "uvicorn"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+regimerain = "regimerain.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["regimerain*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "quick: fast structural checks (leakage, schema, config); run by `selftest --quick`",
+    "slow: needs real data on disk",
+    "network: needs internet",
+]
