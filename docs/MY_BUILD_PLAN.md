@@ -41,7 +41,7 @@ pytest -q            # expect 94 passed
 ```
 
 - [x] GitHub repo created: https://github.com/codeWith-hmnsh/RegimeRain
-- [ ] `pytest` shows 94 passed on my laptop
+- [x] `pytest` shows 96 passed on my laptop (`.venv`, Python 3.12, lightgbm 4.7.0, xarray 2026.7.0)
 - [ ] Read `docs/SOLUTION_EXPLAINED_80.md` §1–§8; wrote my own 5-line summary of the idea
 
 ## Step 2: IMD rainfall to Kaggle (week 1)
@@ -52,7 +52,7 @@ IMD (the truth data) may be blocked from Kaggle's servers, so it is downloaded o
 - [x] Kaggle → *Datasets → New Dataset* → **`ps26080-imd`**, private (uploaded as `imd.zip`, 93 MB; the uncompressed folder stalled in the browser, an Incognito window worked)
 - [x] MJO index downloaded on the laptop: `data/kaggle_upload/mjo/rmm.74toRealtime.txt` (2.6 MB, 1974-06-01 → 2024-02-24).
       Kaggle run 1 failed with `HTTP Error 403: Forbidden` from BOM, which blocks cloud servers.
-- [ ] Kaggle → *New Dataset* → upload `rmm.74toRealtime.txt` → name **`ps26080-mjo`**, private; attach it to the notebook
+- [x] Kaggle → *New Dataset* → upload `rmm.74toRealtime.txt` → name **`ps26080-mjo`**, private; attach it to the notebook
       (the code finds it under `/kaggle/input` by name, `regimerain/ingest/mjo.py`)
 
 ## Step 3: first training run on Kaggle (week 2)
