@@ -33,7 +33,8 @@ Build state (2 Nov 2026):
 | Skill gate (zone × terrain units until district boundaries are licensed) | Built and tested (`regimerain/gate/`, explainer `docs/EXPLAINED_SKILL_GATE.md`) |
 | Error regimes (variant C), explanations, districts, conditional mean | Not built |
 | Replay runs: real held-out backtest days for the web (`regimerain run --source replay [--init DATE] [--publish NAME]`) | Built and tested (`regimerain/runs/replay.py`); needs the Kaggle backtest cache |
-| `fit-final`, `serve` (API), HRES / live GFS runs | Not built (CLI exits 2 and names the plan section) |
+| `regimerain serve`: read-only API + built web app on one port | Built and tested (`regimerain/api/app.py`) |
+| `fit-final`, HRES / live GFS runs | Not built (CLI exits 2 and names the plan section) |
 
 Pilot v1 headline: quantile mapping improves heavy-rain detection (Day 1, ≥64.5 mm: POD 0.171 → 0.204), but regime-aware QM does not yet beat global QM, because the classifier trains on one season per fold. Pilot v2 (`config/v2.yaml`, 7 seasons) is the next run.
 

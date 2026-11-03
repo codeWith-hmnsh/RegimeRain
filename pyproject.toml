@@ -23,7 +23,7 @@ data = ["zarr>=2.16,<3", "gcsfs", "netcdf4", "imdlib", "rioxarray", "geopandas",
 ml = ["lightgbm>=4.0", "scikit-learn>=1.3"]
 live = ["herbie-data", "cfgrib", "eccodes"]
 api = ["fastapi", "uvicorn"]
-dev = ["pytest>=7"]
+dev = ["pytest>=7", "httpx"]           # httpx: FastAPI TestClient in tests/test_api.py
 
 [project.scripts]
 regimerain = "regimerain.cli:main"

@@ -21,7 +21,6 @@ PLANNED = {
     "fit-final": "MODEL_SPEC section 17 (final fit)",
     "run --source hres": "docs/BACKEND_BUILD_PLAN.md phase B4 (model set on an HRES init)",
     "run --source gfs": "docs/BACKEND_BUILD_PLAN.md phase B5 / MODEL_SPEC section 18 (live GFS run)",
-    "serve": "docs/BACKEND_BUILD_PLAN.md phase B2 (FastAPI + web)",
 }
 
 
@@ -81,7 +80,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--schema", default=None, metavar="FILE", help="write the JSON Schema here")
     p = add("selftest", "run the test suite")
     p.add_argument("--quick", action="store_true", help="only tests marked `quick`")
-    add("serve", "start the API + web app")
+    p = add("serve", "start the API + web app (one port)")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8000)
     return ap
 
 
@@ -227,6 +228,15 @@ def cmd_publish(cfg: dict, args) -> int:
     return 0
 
 
+def cmd_serve(cfg: dict, args) -> int:
+    import uvicorn
+    from regimerain.api.app import create_app
+    app = create_app(cfg["paths"]["runs"])
+    print(f"serving runs from {cfg['paths']['runs']} on http://{args.host}:{args.port}/  (API docs: /api/docs)")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    return 0
+
+
 def cmd_contract(cfg: dict, args) -> int:
     from regimerain.runs.contract import check_folder, write_schema
     if args.schema:
@@ -249,7 +259,7 @@ def main(argv: list[str] | None = None) -> int:
         cfg["seasons"] = parse_range(args.seasons)
     handlers = {"config": cmd_config, "selftest": cmd_selftest, "ingest": cmd_ingest, "static": cmd_static,
                 "label": cmd_label, "features": cmd_features, "backtest": cmd_backtest, "report": cmd_report,
-                "run": cmd_run, "publish": cmd_publish, "contract": cmd_contract}
+                "run": cmd_run, "publish": cmd_publish, "contract": cmd_contract, "serve": cmd_serve}
     if args.command in handlers:
         return handlers[args.command](cfg, args)
     raise NotBuiltYet(args.command)
