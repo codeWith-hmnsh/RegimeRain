@@ -81,12 +81,12 @@ held-out season.
 
 ## Step 4: my model, heavy-rain probability (weeks 3–4)
 
-Spec: `docs/MODEL_SPEC.md` §12. I write `regimerain/exceed/train.py` and its tests.
+Spec: `docs/MODEL_SPEC.md` §12. Code: `regimerain/exceed/`, `regimerain/classify/crossfit.py`. Explainer: `docs/EXPLAINED_M4_HEAVY_RAIN.md`.
 
-- [ ] LightGBM binary model for ≥ 64.5 and ≥ 115.6 mm/day, features from §12.1
-- [ ] Isotonic calibration on the inner-validation season only (never the test season)
-- [ ] `P(very heavy) ≤ P(heavy)` enforced; test for it
-- [ ] Reliability diagram + Brier score in the report
+- [x] LightGBM binary model for ≥ 64.5 and ≥ 115.6 mm/day, features from §12.1
+- [x] Isotonic calibration on the inner-validation season only (never the test season)
+- [x] `P(very heavy) ≤ P(heavy)` enforced; test for it
+- [x] Reliability diagram + Brier score in the report (plus BSS, ROC/PR-AUC, POD/FAR at 0.3 and 0.5); cross-fitted inputs with a leakage test
 - [ ] Trained on Kaggle through the backtest; numbers in `PILOT_RESULTS.md`
 
 ## Step 5: skill gate (week 5)

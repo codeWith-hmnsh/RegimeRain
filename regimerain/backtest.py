@@ -1,8 +1,11 @@
-"""`regimerain backtest`: leave-one-monsoon-out folds (MODEL_SPEC 13.4). Built so far: variants raw, A, B.
+"""`regimerain backtest`: leave-one-monsoon-out folds (MODEL_SPEC 13.4). Built so far: variants raw, A, B,
+and the heavy-rain probability model M4 (when `exceed.enabled` and variant B runs).
 
 Per test season T writes cache/fold=T/:
-    predictions.parquet   keys, o_rain, y_synoptic, raw/A/B rain, p_* regime probabilities
+    predictions.parquet   keys, o_rain, y_synoptic, raw/A/B rain, p_* regime probabilities,
+                          p_exc_<threshold> heavy-rain probabilities (M4)
     classifier.json       test-season classifier metrics, temperature, best iteration
+    exceed.json           M4 event counts, best iterations, top features, calibration season
     qm_counts_A.csv, qm_counts_B.csv   expert sample counts and shrinkage weights
     DONE                  config_sha256 + git commit (written last)
 """
@@ -43,6 +46,40 @@ def _grid_shape(cfg: dict) -> tuple[int, int]:
     return st.sizes["lat"], st.sizes["lon"]
 
 
+def run_exceed(cfg: dict, fold: dict, tr: pd.DataFrame, te: pd.DataFrame, P: np.ndarray, preds: pd.DataFrame,
+               shape: tuple[int, int], out_dir: Path, log=print) -> None:
+    """M4 heavy-rain probabilities for the test season (MODEL_SPEC 12), written into `preds` as p_exc_<thr>.
+
+    Training rows (fit seasons) and calibration rows (inner_val) get cross-fitted p_* and qm_rain; the test
+    season gets the fold's own classifier probabilities and variant-B rain, exactly what a live run would see.
+    """
+    from regimerain.classify.crossfit import oof_features
+    from regimerain.exceed.model import fit_exceed, prob_column
+    t0 = time.time()
+    P_oof, qm_oof = oof_features(tr, cfg, shape, log)
+    tr["qm_rain"] = qm_oof                       # in place: tr is not used after this, and it is large
+    for k, c in enumerate(REGIME_PROB_FEATURES):
+        tr[c] = P_oof[:, k]
+    te_x = te.assign(qm_rain=preds["B"].to_numpy(), **{c: P[:, k] for k, c in enumerate(REGIME_PROB_FEATURES)})
+    fit_rows = tr[tr.season.isin(fold["fit"])]
+    val_rows = tr[tr.season == fold["inner_val"]]
+    groups = sorted(te_x.lead.unique()) if cfg["exceed"].get("per_lead", False) else [None]
+    thresholds = sorted(float(t) for t in cfg["exceed"]["thresholds"])
+    out = np.zeros((len(te_x), len(thresholds)), "float32")
+    diag = {"test": fold["test"], "fit": fold["fit"], "inner_val": fold["inner_val"], "models": []}
+    for lead in groups:
+        sel = (lambda d: d) if lead is None else (lambda d, L=lead: d[d.lead == L])
+        model = fit_exceed(sel(fit_rows), sel(val_rows), cfg, log=log)
+        rows = np.arange(len(te_x)) if lead is None else np.flatnonzero(te_x.lead.to_numpy() == lead)
+        out[rows] = model.predict(te_x.iloc[rows])
+        diag["models"].append({"lead": "all" if lead is None else int(lead), **model.diagnostics()})
+    for k, t in enumerate(thresholds):
+        preds[prob_column(t)] = out[:, k]
+    diag["seconds"] = round(time.time() - t0, 1)
+    (out_dir / "exceed.json").write_text(json.dumps(diag, indent=2, default=str))
+    log(f"fold {fold['test']}: exceedance model done ({diag['seconds']:.0f}s)")
+
+
 def run_fold(cfg: dict, fold: dict, variants, log=print) -> dict:
     t0 = time.time()
     leads = cfg["leads"]
@@ -58,7 +95,8 @@ def run_fold(cfg: dict, fold: dict, variants, log=print) -> dict:
     clf = train_classifier(fit, val, cfg)
     T = fit_temperature(raw_logits(clf, val), val.y_synoptic.to_numpy())
     P = predict_proba(clf, te, T)
-    P = smooth_on_grid(te, P, _grid_shape(cfg), int(cfg["classifier"].get("smooth_size", 3)))
+    shape = _grid_shape(cfg)
+    P = smooth_on_grid(te, P, shape, int(cfg["classifier"].get("smooth_size", 3)))
 
     preds = te[KEEP].copy()
     preds["raw"] = te["f_rain"].to_numpy("float32")
@@ -74,6 +112,8 @@ def run_fold(cfg: dict, fold: dict, variants, log=print) -> dict:
         EB = ExpertSet.from_config(qcfg).fit(tr, "y_synoptic")
         preds["B"] = correct_mixture(te, P, EB, qcfg["p_min"], qcfg["p_hard"])
         EB.sample_counts().to_csv(out_dir / "qm_counts_B.csv", index=False)
+        if cfg.get("exceed", {}).get("enabled", False):
+            run_exceed(cfg, fold, tr, te, P, preds, shape, out_dir, log)
     preds.to_parquet(out_dir / "predictions.parquet", index=False)
     diag = {"test": fold["test"], "train": fold["train"], "inner_val": fold["inner_val"],
             "temperature": T, "best_iteration": int(clf.best_iteration or 0),

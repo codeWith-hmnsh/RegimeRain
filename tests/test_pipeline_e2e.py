@@ -71,6 +71,8 @@ def cfg_file(tmp_path):
                      "bob_box": [12, 16, 73, 77], "vort_max_filter_cells": 5},
         "classifier": {"params": {"num_boost_round": 60, "min_data_in_leaf": 50}},
         "qm": {"n0_days": 10},
+        "exceed": {"params": {"min_data_in_leaf": 50, "num_boost_round": 200, "early_stopping_rounds": 20},
+                   "min_events": 5},
         "verify": {"bootstrap_B": {"fast": 30, "full": 30}},
     }
     import yaml
@@ -111,5 +113,14 @@ def test_pilot_end_to_end(cfg_file, capsys):
     assert set(pooled) == {"raw", "A", "B"}
     # regime-dependent bias -> regime-aware correction should beat raw on RMSE in this synthetic world
     assert pooled["B"]["rmse"] < pooled["raw"]["rmse"]
-    for png in ("metrics_heavy.png", "fss_vs_scale.png", "map_wettest_day.png"):
+    for png in ("metrics_heavy.png", "fss_vs_scale.png", "map_wettest_day.png", "reliability_exceed.png"):
         assert (rep_dir / png).exists()
+    # heavy-rain probability model (M4): written per fold, scored in the report, calibrated on inner_val only
+    preds = pd.read_parquet(root / "cache" / "fold=2021" / "predictions.parquet")
+    p = preds[["p_exc_64.5", "p_exc_115.6"]].to_numpy()
+    assert np.isfinite(p).all() and p.min() >= 0 and p.max() <= 1 and (p[:, 1] <= p[:, 0] + 1e-7).all()
+    ex = json.loads((root / "cache" / "fold=2021" / "exceed.json").read_text())
+    assert ex["models"][0]["calibrated_on"] == [ex["inner_val"]] and ex["inner_val"] != 2021
+    exc = [r for r in rep["exceedance"] if r["fold"] == "pooled" and r["threshold"] == 64.5]
+    assert len(exc) == 1 and exc[0]["n_events"] > 0 and exc[0]["brier"] is not None
+    assert "Heavy-rain probability (M4" in (rep_dir / "summary.md").read_text(encoding="utf-8")

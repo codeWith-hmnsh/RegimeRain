@@ -106,6 +106,36 @@ def deltas(cells: pd.DataFrame, variants, leads, cfg) -> list[dict]:
     return out
 
 
+def exceedance(preds: pd.DataFrame, cfg: dict) -> list[dict]:
+    """Scores of the M4 probabilities per threshold x lead, pooled over folds and per fold (MODEL_SPEC 12.3)."""
+    from regimerain.exceed.metrics import exceed_scores
+    from regimerain.exceed.model import prob_column
+    ec = cfg.get("exceed", {})
+    levels = ec.get("decision_levels", {"likely": 0.5, "possible": 0.3})
+    rows = []
+    for t in sorted(float(x) for x in ec.get("thresholds", [])):
+        col = prob_column(t)
+        if col not in preds:
+            continue
+        for lead, g in preds.groupby("lead", observed=True):
+            parts = [("pooled", g)] + [(int(f), gf) for f, gf in g.groupby("fold", observed=True)]
+            for fold, d in parts:
+                ok = d[col].notna().to_numpy()
+                y = d.o_rain.to_numpy()[ok] >= t
+                rows.append({"threshold": t, "lead": int(lead), "fold": fold,
+                             **exceed_scores(y, d[col].to_numpy()[ok], levels)})
+    return _nan_to_none(rows)
+
+
+def _nan_to_none(x):
+    """Undefined scores (no events in a slice) become null: NaN is not valid JSON for the web app."""
+    if isinstance(x, dict):
+        return {k: _nan_to_none(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_nan_to_none(v) for v in x]
+    return None if isinstance(x, float) and np.isnan(x) else x
+
+
 def _fmt(x, nd=3):
     return "–" if x is None or (isinstance(x, float) and np.isnan(x)) else f"{x:.{nd}f}"
 
@@ -136,6 +166,21 @@ def summary_markdown(report: dict) -> str:
     lines += [f"- D{d['lead']} {VARIANT_NAMES.get(d['variant'])}: {d['metric'].upper()}"
               f"{'' if d['threshold'] is None else ' ≥' + format(d['threshold'], 'g')} worse by {abs(d['delta']):.4f}"
               for d in worse] or ["- none"]
+    exc = [r for r in report.get("exceedance", []) if r["fold"] == "pooled"]
+    if exc:
+        lines += ["", "## Heavy-rain probability (M4, held-out seasons)", "",
+                  "BSS: Brier skill against the event frequency of the same rows (> 0 = better than climatology). "
+                  "Alert levels: P ≥ level counts as a yes.", "",
+                  "| Lead | Threshold | Events | Brier | BSS | ROC-AUC | PR-AUC | POD / FAR at 0.3 | POD / FAR at 0.5 |",
+                  "|---|---|---|---|---|---|---|---|---|"]
+        for r in sorted(exc, key=lambda r: (r["lead"], r["threshold"])):
+            lv = {v["level"]: v for v in r["levels"].values()}
+            pf = lambda L: f"{_fmt(lv[L]['pod'])} / {_fmt(lv[L]['far'])}" if L in lv else "–"
+            lines.append(f"| D{r['lead']} | ≥{r['threshold']:g} | {r['n_events']:,} | {_fmt(r['brier'], 4)} | "
+                         f"{_fmt(r['bss'])} | {_fmt(r['roc_auc'])} | {_fmt(r['pr_auc'])} | {pf(0.3)} | {pf(0.5)} |")
+        worse = [r for r in exc if r["bss"] is not None and r["bss"] <= 0]
+        lines += [""] + ([f"- No skill over climatology: D{r['lead']} ≥{r['threshold']:g} (BSS {r['bss']:.3f})"
+                          for r in worse] or ["- Every lead and threshold beats climatology (BSS > 0)."])
     lines += ["", "## Regime classifier (test seasons)", "", "| Test season | Accuracy | Macro-F1 | Recall active / break / depression / normal |",
               "|---|---|---|---|"]
     for c in report["classifier"]:
@@ -189,6 +234,20 @@ def plots(report: dict, preds: pd.DataFrame, shape, out: Path, variants) -> list
     fig.colorbar(im, ax=np.atleast_1d(axes).tolist(), shrink=0.8, label="mm/day")
     fig.suptitle(f"Day-{lead0} forecast for rain day starting {pd.Timestamp(wettest).date()} (most heavy-rain cells)", fontsize=10)
     p = out / "map_wettest_day.png"; fig.savefig(p, dpi=150, bbox_inches="tight"); plt.close(fig); files.append(p.name)
+
+    exc = [r for r in report.get("exceedance", []) if r["fold"] == "pooled"]
+    if exc:
+        ths = sorted({r["threshold"] for r in exc})
+        fig, axes = plt.subplots(1, len(ths), figsize=(4.6 * len(ths), 4.2), squeeze=False)
+        for ax, t in zip(axes[0], ths):
+            ax.plot([0, 1], [0, 1], color="#999", lw=1, ls="--", label="perfect")
+            for r in (r for r in exc if r["threshold"] == t):
+                pts = [(b["mean_forecast"], b["observed_freq"]) for b in r["reliability"] if b["n"] >= 30]
+                if pts:
+                    ax.plot(*zip(*pts), marker="o", label=f"Day {r['lead']} (BSS {_fmt(r['bss'], 2)})")
+            ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.set_xlabel("forecast probability"); ax.set_ylabel("observed frequency")
+            ax.set_title(f"Reliability, rain ≥ {t:g} mm"); ax.grid(alpha=0.3); ax.legend(fontsize=8)
+        fig.tight_layout(); p = out / "reliability_exceed.png"; fig.savefig(p, dpi=150); plt.close(fig); files.append(p.name)
     return files
 
 
@@ -216,6 +275,7 @@ def build_report(cfg: dict, log=print) -> Path:
         "rows": score_table(cells, fsd, thresholds, windows, by_fold=False)
                 + score_table(cells, fsd, thresholds, windows, by_fold=True),
         "deltas": deltas(cells, variants, leads, cfg),
+        "exceedance": exceedance(preds, cfg),
         "classifier": classifier,
     }
     (out / "verification_report.json").write_text(json.dumps(report, indent=1, default=str))

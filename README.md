@@ -29,7 +29,8 @@ Build state (2 Nov 2026):
 | Regime classifier (M1), QM variants A (global) and B (regime-aware), backtest, verification (six metrics + block bootstrap) | Built; pilot v1 measured (`docs/PILOT_RESULTS.md`) |
 | Run exporter, mock producer, web contract v2 | Built (`regimerain/runs/`) |
 | Web MVP (`mvp/web/`) | Built; shows synthetic data until a replay run exists |
-| Error regimes (variant C), exceedance model, skill gate, explanations, districts, conditional mean | Not built |
+| Heavy-rain probability model M4 (LightGBM + isotonic, cross-fitted inputs) | Built and tested (`regimerain/exceed/`, explainer `docs/EXPLAINED_M4_HEAVY_RAIN.md`); Kaggle results pending |
+| Error regimes (variant C), skill gate, explanations, districts, conditional mean | Not built |
 | `fit-final`, `serve` (API), replay / HRES / live GFS runs | Not built (CLI exits 2 and names the plan section) |
 
 Pilot v1 headline: quantile mapping improves heavy-rain detection (Day 1, ≥64.5 mm: POD 0.171 → 0.204), but regime-aware QM does not yet beat global QM, because the classifier trains on one season per fold. Pilot v2 (`config/v2.yaml`, 7 seasons) is the next run.
