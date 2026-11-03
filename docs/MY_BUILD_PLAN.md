@@ -93,8 +93,8 @@ Spec: `docs/MODEL_SPEC.md` §12. Code: `regimerain/exceed/`, `regimerain/classif
 
 Spec: `docs/MODEL_SPEC.md` §14. Per region × regime × lead: use the correction only where it helped.
 
-- [ ] `regimerain/gate/gate.py` + `test_gate_rules`
-- [ ] Gate table in the report
+- [x] `regimerain/gate/gate.py` + `test_gate_rules` (units: zone × terrain until districts are licensed)
+- [x] Gate table in the report (`skill_gate.parquet`, map, summary section)
 
 ## Step 6: real results on the website (week 6)
 

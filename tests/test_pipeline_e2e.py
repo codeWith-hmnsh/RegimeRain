@@ -124,3 +124,9 @@ def test_pilot_end_to_end(cfg_file, capsys):
     exc = [r for r in rep["exceedance"] if r["fold"] == "pooled" and r["threshold"] == 64.5]
     assert len(exc) == 1 and exc[0]["n_events"] > 0 and exc[0]["brier"] is not None
     assert "Heavy-rain probability (M4" in (rep_dir / "summary.md").read_text(encoding="utf-8")
+    # skill gate: one table row per unit x lead x regime, a map, and a summary in the report
+    gate = pd.read_parquet(rep_dir / "skill_gate.parquet")
+    assert set(gate.gate.unique()) <= {-1, 0, 1} and (gate.regime == "all").any()
+    assert sum(rep["skill_gate"]["counts_all_regimes"].values()) == int((gate.regime == "all").sum())
+    assert (rep_dir / "skill_gate_map.png").exists()
+    assert "## Skill gate" in (rep_dir / "summary.md").read_text(encoding="utf-8")

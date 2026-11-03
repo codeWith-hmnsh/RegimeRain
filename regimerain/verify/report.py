@@ -181,6 +181,14 @@ def summary_markdown(report: dict) -> str:
         worse = [r for r in exc if r["bss"] is not None and r["bss"] <= 0]
         lines += [""] + ([f"- No skill over climatology: D{r['lead']} ≥{r['threshold']:g} (BSS {r['bss']:.3f})"
                           for r in worse] or ["- Every lead and threshold beats climatology (BSS > 0)."])
+    gs = report.get("skill_gate")
+    if gs:
+        c = gs["counts_all_regimes"]
+        lines += ["", f"## Skill gate ({gs['unit']}, variant {gs['variant']} vs raw)", "",
+                  f"Unit × lead over all regimes: ON {c['ON']}, NEUTRAL {c['NEUTRAL']}, OFF {c['OFF']}. "
+                  "OFF = correction significantly worse: the live product serves raw NWP there, flagged.", ""]
+        lines += [f"- OFF: {o['unit']}, D{o['lead']}, regime {o['regime']} (SS {_fmt(o['ss'])}, "
+                  f"90% CI [{_fmt(o['ss_lo'])}, {_fmt(o['ss_hi'])}])" for o in gs["off"]] or ["- No unit is OFF."]
     lines += ["", "## Regime classifier (test seasons)", "", "| Test season | Accuracy | Macro-F1 | Recall active / break / depression / normal |",
               "|---|---|---|---|"]
     for c in report["classifier"]:
@@ -251,6 +259,29 @@ def plots(report: dict, preds: pd.DataFrame, shape, out: Path, variants) -> list
     return files
 
 
+def gate_map(gate: pd.DataFrame, st, out: Path) -> str:
+    """Skill gate over all regimes, one panel per lead: where the correction is used (ON), flagged or not."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap
+    zone, geo = st["zone"].values, st["geo"].values
+    land = st["land"].values.astype(bool)
+    g = gate[gate.regime == "all"]
+    leads = sorted(g.lead.unique())
+    fig, axes = plt.subplots(1, len(leads), figsize=(3.6 * len(leads), 3.8), squeeze=False)
+    cmap = ListedColormap(["#C0263D", "#D9D4C7", "#237A57"])      # OFF, NEUTRAL, ON
+    for ax, lead in zip(axes[0], leads):
+        grid = np.full(zone.shape, np.nan)
+        for r in g[g.lead == lead].itertuples():
+            grid[land & (zone == r.zone) & (geo == r.geo)] = r.gate
+        ax.imshow(grid, origin="lower", cmap=cmap, vmin=-1.5, vmax=1.5)
+        ax.set_title(f"Day {lead}", fontsize=9); ax.set_xticks([]); ax.set_yticks([])
+    fig.suptitle("Skill gate (regime-aware QM vs raw): green ON, grey NEUTRAL, red OFF = serve raw", fontsize=10)
+    p = out / "skill_gate_map.png"; fig.savefig(p, dpi=150, bbox_inches="tight"); plt.close(fig)
+    return p.name
+
+
 def build_report(cfg: dict, log=print) -> Path:
     info = check_poolable(cfg["paths"]["cache"], cfg["seasons"])
     variants = [v for v in VARIANT_ORDER if v in next(iter(info.values())).get("variants", ["raw"])]
@@ -278,9 +309,17 @@ def build_report(cfg: dict, log=print) -> Path:
         "exceedance": exceedance(preds, cfg),
         "classifier": classifier,
     }
+    gate = None
+    if "B" in variants:
+        from regimerain.gate.gate import gate_summary, skill_gate
+        gate = skill_gate(preds, cfg, "B", B=int(by_mode(cfg, cfg["verify"]["bootstrap_B"])), log=log)
+        gate.to_parquet(out / "skill_gate.parquet", index=False)
+        report["skill_gate"] = _nan_to_none(gate_summary(gate, "B"))
     (out / "verification_report.json").write_text(json.dumps(report, indent=1, default=str))
     (out / "summary.md").write_text(summary_markdown(report), encoding="utf-8")
     report["plots"] = plots(report, preds, shape, out, variants)
+    if gate is not None:
+        report["plots"].append(gate_map(gate, st, out))
     cells.astype({"synoptic": str, "geo": str}).to_parquet(out / "day_stats_cells.parquet", index=False)
     fsd.to_parquet(out / "day_stats_fss.parquet", index=False)
     log(f"report -> {out}")
