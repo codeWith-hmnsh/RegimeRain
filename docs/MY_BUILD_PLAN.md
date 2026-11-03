@@ -25,7 +25,7 @@ cd C:\samanway-project\080
 git init -b main
 git add .
 git commit -m "Import SIH26080 team baseline (docs, regimerain package, web MVP)"
-git remote add origin https://github.com/<my-username>/regimerain.git
+git remote add origin https://github.com/codeWith-hmnsh/RegimeRain.git
 git push -u origin main
 ```
 
@@ -40,7 +40,7 @@ pip install -e ".[data,ml,dev,api]"
 pytest -q            # expect 94 passed
 ```
 
-- [ ] GitHub repo created and first push done
+- [x] GitHub repo created: https://github.com/codeWith-hmnsh/RegimeRain
 - [ ] `pytest` shows 94 passed on my laptop
 - [ ] Read `docs/SOLUTION_EXPLAINED_80.md` §1–§8; wrote my own 5-line summary of the idea
 
