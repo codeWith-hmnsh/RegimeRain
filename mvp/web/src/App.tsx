@@ -53,9 +53,12 @@ function Shell() {
   )
 }
 
+// Vite's `base` ("/" locally, "/RegimeRain/" on GitHub Pages) is also the router's base path.
+const BASENAME = import.meta.env.BASE_URL.replace(/\/+$/, '') || '/'
+
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={BASENAME}>
       <RunProvider>
         <Shell />
       </RunProvider>

@@ -1,5 +1,9 @@
 # SIH26080 — Regime-Aware Rainfall Post-Processing
 
+[![ci](https://github.com/codeWith-hmnsh/RegimeRain/actions/workflows/ci.yml/badge.svg)](https://github.com/codeWith-hmnsh/RegimeRain/actions/workflows/ci.yml)
+
+**Live site:** https://codewith-hmnsh.github.io/RegimeRain/ (shows the clearly labelled synthetic sample run until the Kaggle backtest results are published).
+
 **Build an AI/ML system that identifies the prevailing monsoon rainfall regime, then applies a regime-specific bias correction to raw NWP rainfall forecasts.**
 Ministry of Earth Sciences (MoES) / NCMRWF · Software · Smart Automation.
 
