@@ -49,6 +49,10 @@ export function QmChart({ curves, show, height = 300, compact = false }: { curve
   const reduce = useReducedMotion()
   const { setTip, el } = useTip()
   const sel = curves.filter((c) => show.includes(c.regime))
+  // qm_curves.json is optional in the contract: without curves there is nothing to scale an axis on
+  if (!sel.length) {
+    return <p ref={wrap} className="text-[13px] leading-[1.5] text-ink-2">Correction curves are not part of this run.</p>
+  }
   const cut = (c: QmCurve) => c.quantiles.map((q, i) => ({ q, f: c.forecast_mm[i], t: c.truth_mm[i] })).filter((p) => p.q <= 0.975)
   const max = niceMax(Math.max(...sel.flatMap((c) => cut(c).flatMap((p) => [p.f, p.t]))))
   const W = 480, H = height, m = { l: 44, r: 12, t: 10, b: 34 }

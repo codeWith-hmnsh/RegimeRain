@@ -19,7 +19,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 PLANNED = {
     "fit-final": "MODEL_SPEC section 17 (final fit)",
-    "run --source replay": "docs/BACKEND_BUILD_PLAN.md phase B3 (replay from the backtest cache)",
     "run --source hres": "docs/BACKEND_BUILD_PLAN.md phase B4 (model set on an HRES init)",
     "run --source gfs": "docs/BACKEND_BUILD_PLAN.md phase B5 / MODEL_SPEC section 18 (live GFS run)",
     "serve": "docs/BACKEND_BUILD_PLAN.md phase B2 (FastAPI + web)",
@@ -72,7 +71,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--init", default=None, help="init date YYYY-MM-DD (mock default 2022-07-14; gfs: today|cached)")
     p.add_argument("--seed", type=int, default=None, help="mock only")
     p.add_argument("--publish", default=None, metavar="NAME",
-                   help="also copy the web export to mvp/web/public/run/NAME (static hosting, `npm run dev`)")
+                   help="also copy the web export to mvp/web/public/run/NAME (static hosting, `npm run dev`); "
+                        "replay without --init publishes NAME-depression, NAME-active, NAME-break")
     p = add("publish", "copy a run's web export into the static web app")
     p.add_argument("run_id")
     p.add_argument("--as", dest="name", default=None, help="folder name under mvp/web/public/run (default: run_id)")
@@ -174,8 +174,35 @@ def _publish(web_dir: Path, name: str) -> Path:
     return dest
 
 
+TRUTH_NAMES = {"imd": "IMD 0.25° gridded rainfall", "chirps": "CHIRPS 2.0"}
+
+
+def cmd_run_replay(cfg: dict, args) -> int:
+    """Held-out backtest days as web runs (BACKEND_BUILD_PLAN B3). --init one day, else the showcase days."""
+    from datetime import date
+    from regimerain.runs.export_web import export_run
+    from regimerain.runs.replay import fold_curves, latest_report, regime_days, replay_fields, showcase_inits
+    report = latest_report(cfg)
+    if report is None:
+        print("replay: no verification report yet (run `report`); scores will be missing from the export",
+              file=sys.stderr)
+    picks = [(date.fromisoformat(args.init), None)] if args.init else showcase_inits(cfg)
+    for init, label in picks:
+        fields = replay_fields(cfg, init, report)
+        web = export_run(fields, cfg, cfg["paths"]["runs"], report=report, curves=fold_curves(cfg, init.year),
+                         regime_days=regime_days(cfg, init.year),
+                         truth_source=TRUTH_NAMES.get(cfg["sources"]["truth"], cfg["sources"]["truth"]))
+        print(f"run {web.parent.name} (replay, held-out {init.year}{', ' + label if label else ''}) -> {web}")
+        if args.publish:
+            name = args.publish if args.init else f"{args.publish}-{label}"
+            print(f"published -> {_publish(web, name)}")
+    return 0
+
+
 def cmd_run(cfg: dict, args) -> int:
     from datetime import date
+    if args.source == "replay":
+        return cmd_run_replay(cfg, args)
     if args.source != "mock":
         raise NotBuiltYet(f"run --source {args.source}")
     from regimerain.runs.export_web import export_run

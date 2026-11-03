@@ -99,10 +99,13 @@ def verification_from_report(report: dict, thresholds: dict[str, float], step_de
     if exc:
         reliability = {}
         for tval, name in ((thresholds["heavy"], "heavy"), (thresholds["very_heavy"], "very_heavy")):
-            rel = (exc.get(str(tval)) or {}).get("lead", {}).get(str(headline), {}).get("reliability")
-            if rel:
-                reliability[name] = [{"p_forecast": p, "p_observed": o, "n": int(n)}
-                                     for p, o, n in zip(rel["bin_mean_p"], rel["obs_freq"], rel["count"])]
+            row = next((r for r in exc if str(r.get("fold")) == "pooled" and int(r["lead"]) == headline
+                        and round(float(r["threshold"]), 1) == round(float(tval), 1)), None)
+            bins = [b for b in (row or {}).get("reliability", [])
+                    if b.get("n") and b.get("mean_forecast") is not None and b.get("observed_freq") is not None]
+            if bins:
+                reliability[name] = [{"p_forecast": round(float(b["mean_forecast"]), 4),
+                                      "p_observed": round(float(b["observed_freq"]), 4), "n": int(b["n"])} for b in bins]
         reliability = reliability or None
 
     clf = report.get("classifier")

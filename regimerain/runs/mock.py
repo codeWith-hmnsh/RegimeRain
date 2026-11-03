@@ -226,10 +226,15 @@ def mock_report(cfg: dict, seed: int = DEFAULT_SEED) -> dict:
                                                                     for c, x in zip(SYNOPTIC, (0.58, 0.51, 0.66, 0.71))}}}
                   for s in seasons]
     bins = np.linspace(0.05, 0.95, 10)
-    exceedance = {str(t): {"lead": {str(L): {"reliability": {
-        "bin_mean_p": bins.round(2).tolist(),
-        "obs_freq": [round(float(np.clip(p * (0.88 if t == thresholds[0] else 0.8) + 0.03 * rng.normal(), 0, 1)), 3) for p in bins],
-        "count": [int(4000 * np.exp(-5 * p) + 40) for p in bins]}} for L in leads}} for t in thresholds}
+    # same shape as regimerain.verify.report.exceedance(): one row per threshold x lead x fold
+    exceedance = []
+    for t in thresholds:
+        for L in leads:
+            rel = [{"bin": [round(k / 10, 2), round((k + 1) / 10, 2)], "n": int(4000 * np.exp(-5 * p) + 40),
+                    "mean_forecast": round(float(p), 2),
+                    "observed_freq": round(float(np.clip(p * (0.88 if t == thresholds[0] else 0.8) + 0.03 * rng.normal(), 0, 1)), 3)}
+                   for k, p in enumerate(bins)]
+            exceedance.append({"threshold": float(t), "lead": L, "fold": "pooled", "reliability": rel})
     return {"backtest_id": "mock", "config_sha256": None, "git_commit": None, "truth_source": "mock",
             "forecast_source": "mock", "seasons": seasons, "leads": leads, "variants": ["raw", "A", "B"],
             "rows": rows, "deltas": deltas, "classifier": classifier, "exceedance": exceedance}

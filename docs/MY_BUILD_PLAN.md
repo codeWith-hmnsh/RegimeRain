@@ -101,7 +101,7 @@ Spec: `docs/MODEL_SPEC.md` §14. Per region × regime × lead: use the correctio
 Spec: `docs/BACKEND_BUILD_PLAN.md` B2–B4.
 
 - [ ] `fit-final` (MODEL_SPEC §17)
-- [ ] Replay producer: real held-out days (a depression day, a break day, an active day) → `mvp/web`
+- [x] Replay producer: real held-out days (a depression day, a break day, an active day) → `mvp/web` (code done; run it once the Kaggle backtest cache is downloaded)
 - [ ] `regimerain serve` (FastAPI) serves the API + built web app
 - [ ] The synthetic banner is gone for real runs
 

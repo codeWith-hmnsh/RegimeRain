@@ -64,7 +64,8 @@ def cfg_file(tmp_path):
     over = {
         "seasons": SEASONS, "leads": [1], "num_threads": 2,
         "paths": {k: str(tmp_path / v) for k, v in {"raw": "raw", "static": "data/static", "table": "data/table",
-                                                   "cache": "cache", "reports": "reports", "imd": "imd"}.items()},
+                                                   "cache": "cache", "reports": "reports", "imd": "imd",
+                                                   "runs": "runs"}.items()},
         "grid": {"rain_box": [10.0, 14.0, 70.0, 75.0]},
         "labels": {"climatology": "self", "cmz_box": [10, 14, 70, 75], "depression_radius_km": 150},
         "features": {"llj_box": [8, 12, 68, 72], "trough_lon_band": [72, 76], "trough_lat_band": [9, 15],
@@ -130,3 +131,19 @@ def test_pilot_end_to_end(cfg_file, capsys):
     assert sum(rep["skill_gate"]["counts_all_regimes"].values()) == int((gate.regime == "all").sum())
     assert (rep_dir / "skill_gate_map.png").exists()
     assert "## Skill gate" in (rep_dir / "summary.md").read_text(encoding="utf-8")
+    # replay: real held-out days exported for the web, valid against web contract v2, never synthetic
+    from regimerain.runs.contract import check_folder
+    capsys.readouterr()
+    run(["run", "--source", "replay"], cfgs)
+    printed = capsys.readouterr().out
+    assert "replay, held-out" in printed
+    webs = sorted((root / "runs").glob("*/web"))
+    assert webs, "no replay export written"
+    for web in webs:
+        assert check_folder(web) == []
+        man = json.loads((web / "manifest.json").read_text())
+        assert man["kind"] == "replay" and man["synthetic"] is False
+        assert {"truth", "p_heavy", "p_very_heavy", "corrected_global"} <= set(man["layers"])
+        assert man["provenance"]["held_out_season"] in SEASONS and man["truth_source"].startswith("IMD")
+        ver = json.loads((web / "verification.json").read_text())
+        assert ver["synthetic"] is False and ver["entries"] and ver["reliability"]

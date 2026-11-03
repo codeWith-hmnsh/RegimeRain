@@ -13,6 +13,7 @@ Requirements come from `../PRD.md` §8, §11, §12, §16 (NFR-1 to NFR-4), §18 
 | Date | Done |
 |---|---|
 | 29 Sep 2026 | B0 + B1. `regimerain/runs/` (`fields`, `contract`, `mock`, `derive`, `export_web`, `geo`, `places`); CLI `run --source mock [--publish NAME]`, `publish`, `contract --check/--schema`; `tests/test_runs.py` (12 tests incl. contract ↔ `types.ts` drift). The web reads v2 only; the sample run is now produced by the package (`npm run sample`). Decisions D1–D3 applied |
+| 4 Nov 2026 | B3 replay. `regimerain/runs/replay.py`: `run --source replay` exports real held-out days from `cache/fold=Y/predictions.parquet` (raw, A, B, M4 probabilities, IMD truth) with the pooled report; without `--init` it picks the wettest depression, active and break days. Backtest now writes `qm_curves.json` per fold, so real runs show real correction curves. No wind layer (HRES dynamics stay in Kaggle scratch). Tested end to end and rendered in headless Chrome (no NaN, no console errors) |
 
 ## 1. Where things stood (29 Sep 2026, before B0)
 

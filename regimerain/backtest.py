@@ -6,6 +6,7 @@ Per test season T writes cache/fold=T/:
                           p_exc_<threshold> heavy-rain probabilities (M4)
     classifier.json       test-season classifier metrics, temperature, best iteration
     exceed.json           M4 event counts, best iterations, top features, calibration season
+    qm_curves.json        what the corrections learned, for the web (all-India curve per regime + global)
     qm_counts_A.csv, qm_counts_B.csv   expert sample counts and shrinkage weights
     DONE                  config_sha256 + git commit (written last)
 """
@@ -114,6 +115,8 @@ def run_fold(cfg: dict, fold: dict, variants, log=print) -> dict:
         EB.sample_counts().to_csv(out_dir / "qm_counts_B.csv", index=False)
         if cfg.get("exceed", {}).get("enabled", False):
             run_exceed(cfg, fold, tr, te, P, preds, shape, out_dir, log)
+    from regimerain.correct.curves import display_curves
+    (out_dir / "qm_curves.json").write_text(json.dumps(display_curves(tr, float(qcfg["n0_days"]))))
     preds.to_parquet(out_dir / "predictions.parquet", index=False)
     diag = {"test": fold["test"], "train": fold["train"], "inner_val": fold["inner_val"],
             "temperature": T, "best_iteration": int(clf.best_iteration or 0),
