@@ -162,3 +162,16 @@ def test_climatology_tolerates_a_few_missing_years(tmp_path):
     assert 1983 not in have and len(have) == 34
     with pytest.raises(FileNotFoundError):
         available_climatology(cfg, list(range(1981, 2016)), [2019], log=lambda *_: None, min_years=35)
+
+
+def test_rmm_found_in_attached_dataset(tmp_path, monkeypatch):
+    """Kaggle: BOM returns 403, so ingest must use an attached copy without any config edit."""
+    from regimerain.ingest import mjo
+    d = tmp_path / "input" / "datasets" / "someone" / "ps26080-mjo"
+    d.mkdir(parents=True)
+    (d / mjo.RMM_NAME).write_text(RMM_TEXT, encoding="utf-8")
+    monkeypatch.delenv("RMM_FILE", raising=False)
+    monkeypatch.setattr(mjo, "SEARCH_DIRS", [str(tmp_path / "input")])
+    text, source = mjo.fetch_text(None)
+    assert source.startswith("file:") and source.endswith(mjo.RMM_NAME)
+    assert len(mjo.parse(text)) == 2

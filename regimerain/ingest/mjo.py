@@ -8,18 +8,32 @@ from __future__ import annotations
 import io
 import os
 import urllib.request
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 RMM_URLS = ["http://www.bom.gov.au/climate/mjo/graphics/rmm.74toRealtime.txt",
             "https://www.bom.gov.au/climate/mjo/graphics/rmm.74toRealtime.txt"]
-USER_AGENT = "regimerain/0.1 (SIH26080 research; https://github.com/shreyashsri79/080)"
+USER_AGENT = "regimerain/0.1 (SIH26080 research; https://github.com/codeWith-hmnsh/RegimeRain)"
 COLS = ["year", "month", "day", "rmm1", "rmm2", "phase", "amplitude"]
+RMM_NAME = "rmm.74toRealtime.txt"
+# Where an attached copy lives on hosted notebooks (Kaggle datasets mount read-only under /kaggle/input).
+SEARCH_DIRS = ["/kaggle/input"]
+
+
+def find_attached(name: str = RMM_NAME) -> str | None:
+    """First `name` found under SEARCH_DIRS, so a Kaggle run needs no config edit once the file is attached."""
+    for d in SEARCH_DIRS:
+        root = Path(d)
+        hits = sorted(root.glob(f"**/{name}")) if root.is_dir() else []
+        if hits:
+            return str(hits[0])
+    return None
 
 
 def fetch_text(rmm_file: str | None = None) -> tuple[str, str]:
-    path = os.environ.get("RMM_FILE") or rmm_file
+    path = os.environ.get("RMM_FILE") or rmm_file or find_attached()
     if path:
         with open(path, encoding="utf-8", errors="replace") as fh:
             return fh.read(), f"file:{path}"

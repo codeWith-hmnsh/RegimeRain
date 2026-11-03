@@ -50,6 +50,10 @@ IMD (the truth data) may be blocked from Kaggle's servers, so it is downloaded o
 
 - [x] `data/kaggle_upload/imd/rain/1981.grd … 2022.grd` present (42 files, 1.0 GB; 2019 read back: 129 × 135 grid, JJAS mean 7.9 mm/day)
 - [x] Kaggle → *Datasets → New Dataset* → **`ps26080-imd`**, private (uploaded as `imd.zip`, 93 MB; the uncompressed folder stalled in the browser, an Incognito window worked)
+- [x] MJO index downloaded on the laptop: `data/kaggle_upload/mjo/rmm.74toRealtime.txt` (2.6 MB, 1974-06-01 → 2024-02-24).
+      Kaggle run 1 failed with `HTTP Error 403: Forbidden` from BOM, which blocks cloud servers.
+- [ ] Kaggle → *New Dataset* → upload `rmm.74toRealtime.txt` → name **`ps26080-mjo`**, private; attach it to the notebook
+      (the code finds it under `/kaggle/input` by name, `regimerain/ingest/mjo.py`)
 
 ## Step 3: first training run on Kaggle (week 2)
 
