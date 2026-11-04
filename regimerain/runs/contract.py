@@ -135,6 +135,12 @@ class Cell(_M):
     lon: float
 
 
+class Reason(_M):
+    text: str = Field(description="plain-language phrase, e.g. 'depression/low regime (p=0.72)'")
+    feature: str
+    log_odds: float = Field(description="TreeSHAP contribution to the heavy-rain model's log-odds (tooltip only)")
+
+
 class PlaceLead(_M):
     raw_mm: float
     corrected_mm: float
@@ -146,6 +152,7 @@ class PlaceLead(_M):
     regime_probs: dict[str, float]
     qm_curve: Optional[str] = None
     qm_curve_days: Optional[int] = None
+    reasons: Optional[list[Reason]] = Field(None, description="why P(heavy) is high here; model runs only")
 
 
 class Place(_M):

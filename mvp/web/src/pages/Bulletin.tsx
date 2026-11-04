@@ -57,7 +57,13 @@ export default function Bulletin() {
                 const l = p.leads[lead]
                 return (
                   <tr key={p.name} className="border-b border-rule">
-                    <td className="py-1.5 font-medium">{p.name}</td>
+                    <td className="py-1.5 font-medium">{p.name}
+                      {l.reasons && l.reasons.length > 0 && (l.p_heavy ?? 0) >= 0.1 && (
+                        <span data-testid="reasons" className="block text-[11.5px] font-normal text-ink-2"
+                          title={l.reasons.map((r) => `${r.feature}: +${r.log_odds.toFixed(2)} log-odds`).join('\n')}>
+                          {l.reasons.map((r) => r.text).join(', ')}
+                        </span>)}
+                    </td>
                     <td className="py-1.5"><span className="mr-1.5 inline-block h-2.5 w-2.5 rounded-[2px] align-[-1px]" style={{ background: REGIME[l.regime].color }} />{REGIME[l.regime].label}</td>
                     <td className="py-1.5 text-ink-2">{GEO[p.geo].label}</td>
                     <td className="num py-1.5 text-right text-ink-2">{fmtMm(l.raw_mm)}</td>

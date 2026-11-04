@@ -184,6 +184,11 @@ def test_pilot_end_to_end(cfg_file, capsys):
     assert man["kind"] == "model" and man["synthetic"] is False and man["forecast_source"] == "NCEP GFS 0.25"
     assert man["provenance"]["model_set_id"] == model_dir.name and "transfer" in man["provenance"]["note"]
     assert man["provenance"]["model_hashes"] and man["regime_days"]
+    # explanations: TreeSHAP reasons from the heavy-rain model for named places (MODEL_SPEC 15)
+    places = json.loads((web / "places.json").read_text())["places"]
+    assert places, "no named place inside the synthetic domain"
+    reasons = [r for p in places for lead in p["leads"] for r in (lead.get("reasons") or [])]
+    assert reasons and all(r["log_odds"] > 0 and r["text"] for r in reasons)
     with open(model_dir / "config.yaml", "a", encoding="utf-8") as fh:
         fh.write("# edited after fit-final\n")
     with pytest.raises(ValueError, match="changed since fit-final"):

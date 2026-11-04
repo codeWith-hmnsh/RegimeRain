@@ -79,7 +79,7 @@ def live_fields(cfg: dict, init: date, model_set, forecast: dict, source: str = 
     col = lambda t: grid(out[prob_column(t)]) if prob_column(t) in out else None
     m = rmm is not None and _mjo_fresh(rmm, init)
     card = ms.card
-    return RunFields(
+    fields = RunFields(
         kind="model", init=init, source=source, lat=lat, lon=lon, leads=leads, land=land,
         raw=grid(raw).clip(min=0), corrected=grid(corrected), p_synoptic=P, geo=geo,
         corrected_global=grid(out.A), p_heavy=col(heavy), p_very_heavy=col(very_heavy),
@@ -89,6 +89,23 @@ def live_fields(cfg: dict, init: date, model_set, forecast: dict, source: str = 
                     "note": (f"{TRANSFER_NOTE}. Skill gate OFF on {int((~served).sum())} land cell-days "
                              f"(raw rain served there). MJO: {'latest RMM' if m else 'neutral (index missing or stale)'}. "
                              f"Trained on seasons {card.get('seasons')}.")})
+    fields.reasons = place_reasons(fields, ms, rows, out, k)
+    return fields
+
+
+def place_reasons(f: RunFields, ms, rows: pd.DataFrame, out: pd.DataFrame, k_of_row: np.ndarray) -> dict:
+    """Reasons for each named place's cell and lead (only those rows: TreeSHAP on every cell is wasted work)."""
+    from regimerain.runs.derive import nearest_land_cell
+    from regimerain.runs.places import PLACES
+    cells = {c for _, la, lo in PLACES if (c := nearest_land_cell(f, la, lo)) is not None}
+    if not cells:
+        return {}
+    key = pd.Series(list(zip(k_of_row, rows.lat_idx, rows.lon_idx)))
+    wanted = {(k, i, j) for (i, j) in cells for k in range(len(f.leads))}
+    pick = key.isin(wanted).to_numpy()
+    sel = rows[pick].reset_index(drop=True)
+    reasons = ms.explain(sel, out[pick].reset_index(drop=True))
+    return {tuple(int(x) for x in t): r for t, r in zip(key[pick], reasons)}
 
 
 def _mjo_fresh(rmm: pd.DataFrame, init) -> bool:

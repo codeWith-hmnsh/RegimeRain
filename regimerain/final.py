@@ -231,6 +231,14 @@ class ModelSet:
                 out[prob_column(t)] = Pm[:, k].astype("float32")
         return out
 
+    def explain(self, rows: pd.DataFrame, out: pd.DataFrame, k: int = 3) -> list[list[dict]]:
+        """Top reasons from the heavy-rain (first threshold) model for each row of `rows` (MODEL_SPEC 15)."""
+        from regimerain.explain.explain import top_reasons
+        if not self.exceed:
+            return [[] for _ in range(len(rows))]
+        X = rows.assign(qm_rain=out["B"].to_numpy(), **{c: out[c].to_numpy() for c in REGIME_PROB_FEATURES})
+        return top_reasons(self.exceed[0][1], X, k)
+
     def gate_served(self, out: pd.DataFrame, static: xr.Dataset | None = None) -> np.ndarray:
         """True where the corrected rain is served, False where the skill gate is OFF (raw is served instead).
 

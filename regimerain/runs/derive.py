@@ -118,6 +118,7 @@ def place_values(f: RunFields, curves: list[dict] | None = None, regime_days: di
                 "regime": reg, "regime_probs": {s: round(float(p), 2) for s, p in zip(SYNOPTIC, probs)},
                 "qm_curve": curve["id"] if curve else None,
                 "qm_curve_days": (curve["n_days"] if curve else (regime_days or {}).get(reg)),
+                "reasons": (f.reasons or {}).get((k, i, j)),
             })
         out.append({"name": name, "lat": la, "lon": lo, "cell": {"lat": float(f.lat[i]), "lon": float(f.lon[j])},
                     "geo": GEO[int(f.geo[i, j])], "leads": leads})

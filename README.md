@@ -35,7 +35,8 @@ Build state (2 Nov 2026):
 | Web MVP (`mvp/web/`) | Built; shows synthetic data until a replay run exists |
 | Heavy-rain probability model M4 (LightGBM + isotonic, cross-fitted inputs) | Built and tested (`regimerain/exceed/`, explainer `docs/EXPLAINED_M4_HEAVY_RAIN.md`); Kaggle results pending |
 | Skill gate (zone × terrain units until district boundaries are licensed) | Built and tested (`regimerain/gate/`, explainer `docs/EXPLAINED_SKILL_GATE.md`) |
-| Error regimes (variant C), explanations, districts, conditional mean | Not built |
+| Reasons behind each heavy-rain probability (TreeSHAP on M4, named places, Bulletin page) | Built and tested (`regimerain/explain/`, explainer `docs/EXPLAINED_REASONS.md`); live runs only |
+| Error regimes (variant C), districts, conditional mean | Not built |
 | Replay runs: real held-out backtest days for the web (`regimerain run --source replay [--init DATE] [--publish NAME]`) | Built and tested (`regimerain/runs/replay.py`); needs the Kaggle backtest cache |
 | `regimerain serve`: read-only API + built web app on one port | Built and tested (`regimerain/api/app.py`) |
 | `fit-final`: every model refit on all seasons → hashed model set (`regimerain/final.py`, `ModelSet` loader) | Built and tested |

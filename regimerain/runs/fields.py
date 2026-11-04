@@ -55,6 +55,7 @@ class RunFields:
     p_heavy: np.ndarray | None = None             # (lead, nlat, nlon) P(rain >= heavy threshold)
     p_very_heavy: np.ndarray | None = None
     truth: np.ndarray | None = None               # replay only: observed rain for the valid days
+    reasons: dict | None = None                   # (lead index, i, j) -> [{feature, log_odds, text}] (MODEL_SPEC 15)
     provenance: dict = field(default_factory=dict)
 
     @property

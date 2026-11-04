@@ -70,7 +70,10 @@ export interface PlaceLead {
   raw_mm: number; corrected_mm: number; corrected_global_mm?: number
   p_heavy?: number; p_very_heavy?: number; truth_mm?: number
   regime: Regime; regime_probs: Record<Regime, number>; qm_curve?: string; qm_curve_days?: number
+  reasons?: Reason[]
 }
+/** Why P(heavy) is high at a place (TreeSHAP on the heavy-rain model); model runs only. */
+export interface Reason { text: string; feature: string; log_odds: number }
 export interface Place { name: string; lat: number; lon: number; cell: { lat: number; lon: number }; geo: GeoClass; leads: PlaceLead[] }
 
 export type Scores = Partial<Record<MetricKey, number | null>>

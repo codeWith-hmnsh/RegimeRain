@@ -111,6 +111,7 @@ Spec: `docs/BACKEND_BUILD_PLAN.md` B2–B4.
 - [x] Replay producer: real held-out days (a depression day, a break day, an active day) → `mvp/web` (code done; run it once the Kaggle backtest cache is downloaded)
 - [x] `regimerain serve` (FastAPI) serves the API + built web app (smoke test passes through it)
 - [x] Live run on today's GFS: `regimerain run --source gfs` (GFS ingest checked on real 15 Jul and 1 Aug 2026 inits; explainer `docs/EXPLAINED_LIVE_GFS.md`)
+- [x] Reasons per place: "why heavy rain here" from TreeSHAP on the heavy-rain model (`docs/EXPLAINED_REASONS.md`)
 - [ ] The synthetic banner is gone for real runs
 
 ## Step 7: launch (week 7)
