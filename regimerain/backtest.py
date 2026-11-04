@@ -29,7 +29,7 @@ from regimerain.data import load_table
 from regimerain.features.schema import REGIME_PROB_FEATURES
 from regimerain.folds import fold_dir, is_done, lomo_folds, mark_done
 
-BUILT_VARIANTS = ("raw", "A", "B", "C")
+BUILT_VARIANTS = ("raw", "A", "B", "C", "CM")
 KEEP = ["init", "valid", "lead", "season", "lat_idx", "lon_idx", "zone", "geo", "y_synoptic", "o_rain"]
 
 
@@ -48,7 +48,7 @@ def _grid_shape(cfg: dict) -> tuple[int, int]:
 
 
 def run_exceed(cfg: dict, fold: dict, tr: pd.DataFrame, te: pd.DataFrame, P: np.ndarray, preds: pd.DataFrame,
-               shape: tuple[int, int], out_dir: Path, log=print) -> None:
+               shape: tuple[int, int], out_dir: Path, log=print, with_cm: bool = False) -> None:
     """M4 heavy-rain probabilities for the test season (MODEL_SPEC 12), written into `preds` as p_exc_<thr>.
 
     Training rows (fit seasons) and calibration rows (inner_val) get cross-fitted p_* and qm_rain; the test
@@ -76,6 +76,11 @@ def run_exceed(cfg: dict, fold: dict, tr: pd.DataFrame, te: pd.DataFrame, P: np.
         diag["models"].append({"lead": "all" if lead is None else int(lead), **model.diagnostics()})
     for k, t in enumerate(thresholds):
         preds[prob_column(t)] = out[:, k]
+    if with_cm:                                  # variant CM: same rows and features, target o_rain (FR-13)
+        from regimerain.exceed.model import fit_conditional_mean, predict_conditional_mean
+        cm = fit_conditional_mean(fit_rows, val_rows, cfg, log=log)
+        preds["CM"] = predict_conditional_mean(cm, te_x)
+        diag["conditional_mean"] = {"best_iteration": int(cm.best_iteration or 0)}
     diag["seconds"] = round(time.time() - t0, 1)
     (out_dir / "exceed.json").write_text(json.dumps(diag, indent=2, default=str))
     log(f"fold {fold['test']}: exceedance model done ({diag['seconds']:.0f}s)")
@@ -114,7 +119,7 @@ def run_fold(cfg: dict, fold: dict, variants, log=print) -> dict:
         preds["B"] = correct_mixture(te, P, EB, qcfg["p_min"], qcfg["p_hard"])
         EB.sample_counts().to_csv(out_dir / "qm_counts_B.csv", index=False)
         if cfg.get("exceed", {}).get("enabled", False):
-            run_exceed(cfg, fold, tr, te, P, preds, shape, out_dir, log)
+            run_exceed(cfg, fold, tr, te, P, preds, shape, out_dir, log, with_cm="CM" in variants)
     if "C" in variants:
         from regimerain.errreg.errreg import run_variant_c
         preds["C"], diag_c, EC = run_variant_c(cfg, fold, tr, te, log=log)
@@ -136,6 +141,9 @@ def run_backtest(cfg: dict, variants=BUILT_VARIANTS, only=None, force: bool = Fa
     if unknown:
         log(f"backtest: variants {unknown} not built yet (MODEL_SPEC 10, 12) - skipping them")
     variants = [v for v in variants if v in BUILT_VARIANTS]
+    if "CM" in variants and not ("B" in variants and cfg.get("exceed", {}).get("enabled", False)):
+        log("backtest: variant CM needs variant B and exceed.enabled (it reuses the M4 rows) - skipping it")
+        variants = [v for v in variants if v != "CM"]
     info = {"config_sha256": config_sha256(cfg), "git_commit": git_commit(), "variants": list(variants),
             "seasons": list(cfg["seasons"]), "leads": list(cfg["leads"])}
     ran = []

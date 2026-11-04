@@ -73,6 +73,7 @@ def cfg_file(tmp_path):
         "classifier": {"params": {"num_boost_round": 60, "min_data_in_leaf": 50}},
         "qm": {"n0_days": 10},
         "exceed": {"params": {"min_data_in_leaf": 50, "num_boost_round": 200, "early_stopping_rounds": 20},
+                   "cm_params": {"min_data_in_leaf": 50, "num_boost_round": 200, "early_stopping_rounds": 20},
                    "min_events": 5},
         "verify": {"bootstrap_B": {"fast": 30, "full": 30}},
     }
@@ -100,7 +101,7 @@ def test_pilot_end_to_end(cfg_file, capsys):
     t = pd.read_parquet(root / "data" / "table" / "lead=1" / "season=2019" / "part.parquet")
     assert len(t) == 122 * (len(LAT) * len(LON) - 1)                   # every JJAS day x land cell
     assert t.f_llj_index.nunique() > 50 and t.o_rain.notna().all()
-    run(["backtest", "--variants", "raw,A,B,C"], cfgs)
+    run(["backtest", "--variants", "raw,A,B,C,CM"], cfgs)
     for y in SEASONS:
         assert (root / "cache" / f"fold={y}" / "DONE").exists()
     capsys.readouterr()
@@ -111,7 +112,9 @@ def test_pilot_end_to_end(cfg_file, capsys):
     rep = json.loads((rep_dir / "verification_report.json").read_text())
     pooled = {r["variant"]: r for r in rep["rows"]
               if r["fold"] == "pooled" and r["synoptic"] == "all" and r["threshold"] == 15.6 and r["lead"] == 1}
-    assert set(pooled) == {"raw", "A", "B", "C"}
+    assert set(pooled) == {"raw", "A", "B", "C", "CM"}
+    cm = pd.read_parquet(root / "cache" / "fold=2020" / "predictions.parquet", columns=["CM"]).CM
+    assert cm.min() >= 0 and cm.std() > 0
     # error regimes (variant C): clusters per fold and lead, named, with a crosstab and test agreement
     er = json.loads((root / "cache" / "fold=2021" / "errreg.json").read_text())["leads"]["1"]
     assert 4 <= er["k"] <= 8 and len(er["names"]) == er["k"] and sum(er["fit_days_per_cluster"]) > 50

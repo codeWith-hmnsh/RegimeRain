@@ -37,7 +37,8 @@ Build state (2 Nov 2026):
 | Skill gate (zone × terrain units until district boundaries are licensed) | Built and tested (`regimerain/gate/`, explainer `docs/EXPLAINED_SKILL_GATE.md`) |
 | Reasons behind each heavy-rain probability (TreeSHAP on M4, named places, Bulletin page) | Built and tested (`regimerain/explain/`, explainer `docs/EXPLAINED_REASONS.md`); live runs only |
 | Error regimes and variant C (clusters of forecast errors, predicted from forecast-time features, one QM expert set per cluster) | Built and tested (`regimerain/errreg/`, explainer `docs/EXPLAINED_ERROR_REGIMES.md`); backtest only |
-| Districts, conditional mean | Not built |
+| Conditional mean, variant CM (Tweedie LightGBM on the M4 rows, expected rain ≥ 0) | Built and tested (`regimerain/exceed/model.py`); backtest only |
+| Districts | Not built (boundary licence, PRD §20) |
 | Replay runs: real held-out backtest days for the web (`regimerain run --source replay [--init DATE] [--publish NAME]`) | Built and tested (`regimerain/runs/replay.py`); needs the Kaggle backtest cache |
 | `regimerain serve`: read-only API + built web app on one port | Built and tested (`regimerain/api/app.py`) |
 | `fit-final`: every model refit on all seasons → hashed model set (`regimerain/final.py`, `ModelSet` loader) | Built and tested |

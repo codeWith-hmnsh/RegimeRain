@@ -77,3 +77,12 @@ validation season, and I score it with Brier skill, reliability and ROC/PR-AUC o
 3. Why PR-AUC as well as ROC-AUC? (With 1 % events, ROC-AUC can look high even when most alerts are false.)
 4. What would you do with more time? (Per-region calibration; displacement-aware features; SHAP reasons per
    alert, MODEL_SPEC §15.)
+
+## Also here: the conditional mean (variant CM)
+
+`fit_conditional_mean` trains one more LightGBM on the same rows and features, but as a regressor with a
+**Tweedie** loss and target `o_rain` (the rain amount). Tweedie fits data with many exact zeros and a long
+right tail, and its predictions are never negative. It is scored as its own variant `CM`. Expect the best RMSE
+of all variants (it predicts the average outcome, a smooth field) and weak extremes (an average never
+reaches 150 mm). That trade-off is the point of showing it next to quantile mapping.
+

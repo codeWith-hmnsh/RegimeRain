@@ -101,6 +101,7 @@ exceed:
   per_lead: false            # true = one model per lead (lower peak RAM; auto-set on small Colab runtimes)
   decision_levels: {likely: 0.5, possible: 0.3}
   neg_fraction: {fast: 0.25, full: 1.0}   # share of no-event rows kept for training; weight 1/frac keeps the base rate
+  cm_fraction: {fast: 0.25, full: 1.0}    # variant CM (conditional mean, Tweedie): share of fit rows used
   min_events: 20             # fewer events in fit or val -> constant base-rate probability, flagged in exceed.json
   params: {learning_rate: 0.05, num_leaves: 63, min_data_in_leaf: 1000, num_boost_round: 3000, early_stopping_rounds: 100}
 

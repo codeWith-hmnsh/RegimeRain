@@ -142,3 +142,40 @@ def fit_exceed(fit: pd.DataFrame, val: pd.DataFrame, cfg: dict, features=EXCEED_
         log(f"exceed >= {t:g} mm: {m.n_events_fit} fit / {m.n_events_val} val events, {state}")
         models.append(m)
     return ExceedModel(features, models, sorted(int(s) for s in val.season.unique()))
+
+
+# ------------------------------------------------------------------------------------ conditional mean (FR-13)
+CM_PARAMS = dict(objective="tweedie", tweedie_variance_power=1.5, learning_rate=0.05, num_leaves=63,
+                 min_data_in_leaf=1000, feature_fraction=0.8, bagging_fraction=0.7, bagging_freq=1,
+                 num_boost_round=3000, early_stopping_rounds=100)
+
+
+def fit_conditional_mean(fit: pd.DataFrame, val: pd.DataFrame, cfg: dict, features=EXCEED_FEATURES, log=print):
+    """Variant CM (MODEL_SPEC 12.5): expected rain from a Tweedie LightGBM regressor, same rows/features as M4.
+
+    Tweedie suits rain (many zeros, skewed positive part) and predicts >= 0. Early stopping on `val` only.
+    `exceed.cm_fraction` subsamples fit rows (fast mode), weighting nothing: a uniform sample keeps the mean.
+    """
+    import lightgbm as lgb
+    features = list(features)
+    assert_no_leak(features)
+    params = lgb_params(cfg, {**CM_PARAMS, **cfg["exceed"].get("cm_params", {})})
+    rounds = int(params.pop("num_boost_round"))
+    stop = int(params.pop("early_stopping_rounds"))
+    frac = float(by_mode(cfg, cfg["exceed"].get("cm_fraction", 1.0)))
+    if frac < 1.0:
+        fit = fit.sample(frac=frac, random_state=int(cfg["seed"]))
+    dtr = lgb.Dataset(fit[features], fit.o_rain.to_numpy("float64"), categorical_feature=CATEGORICAL,
+                      free_raw_data=False)
+    dva = lgb.Dataset(val[features], val.o_rain.to_numpy("float64"), categorical_feature=CATEGORICAL,
+                      reference=dtr, free_raw_data=False)
+    booster = lgb.train(params, dtr, rounds, valid_sets=[dva], callbacks=[lgb.early_stopping(stop, verbose=False)])
+    assert_no_leak(booster.feature_name())
+    log(f"conditional mean: {len(fit):,} fit rows, best iteration {booster.best_iteration}")
+    return booster
+
+
+def predict_conditional_mean(booster, X: pd.DataFrame) -> np.ndarray:
+    y = booster.predict(X[booster.feature_name()], num_iteration=booster.best_iteration or None)
+    return np.clip(np.asarray(y, "float64"), 0, None).astype("float32")
+
