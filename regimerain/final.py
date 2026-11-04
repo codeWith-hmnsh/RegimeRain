@@ -26,6 +26,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 import yaml
 
 from regimerain.backtest import git_commit
@@ -35,9 +36,11 @@ from regimerain.correct.experts import ExpertSet
 from regimerain.data import load_table
 from regimerain.features.schema import BASE_FEATURES, CATEGORICAL, EXCEED_FEATURES, REGIME_PROB_FEATURES, assert_no_leak
 from regimerain.folds import check_poolable, fold_dir
+from regimerain.static.basic import TERRAIN_VARS
 from regimerain.verify.metrics import fmt_threshold
 
 KEYS = ["init", "lead", "lat_idx", "lon_idx"]
+STATIC_VARS = ("land", "geo", "zone") + TERRAIN_VARS     # everything a live run needs from the static layers
 
 
 def _sha256(path: Path) -> str:
@@ -105,9 +108,16 @@ def fit_final(cfg: dict, log=print) -> Path:
 
     qcfg = cfg["qm"]
     (out / "qm").mkdir(exist_ok=True)
-    experts = pd.concat([ExpertSet.from_config(qcfg).fit(tr, None).to_frame("A"),
-                         ExpertSet.from_config(qcfg).fit(tr, "y_synoptic").to_frame("B")], ignore_index=True)
+    EB = ExpertSet.from_config(qcfg).fit(tr, "y_synoptic")
+    experts = pd.concat([ExpertSet.from_config(qcfg).fit(tr, None).to_frame("A"), EB.to_frame("B")], ignore_index=True)
     experts.to_parquet(out / "qm" / "experts.parquet", index=False)
+    from regimerain.correct.curves import display_curves
+    from regimerain.features.schema import SYNOPTIC
+    (out / "qm" / "curves.json").write_text(json.dumps(display_curves(tr, float(qcfg["n0_days"]))))
+    counts = EB.sample_counts()                       # same definition as the replay runs (qm_counts_B.csv)
+    counts = counts[counts.regime >= 0]
+    regime_days = {SYNOPTIC[int(r)]: int(n) for r, n in counts.groupby("regime").n_days.max().items()
+                   if int(r) < len(SYNOPTIC)}
     log(f"fit-final: {len(experts)} QM experts (A + B)")
 
     exceed_card = None
@@ -135,14 +145,14 @@ def fit_final(cfg: dict, log=print) -> Path:
 
     from regimerain.static.basic import load_static
     st = load_static(cfg)
-    np.savez_compressed(out / "static.npz", lat=st.lat.values, lon=st.lon.values, land=st["land"].values,
-                        geo=st["geo"].values, zone=st["zone"].values)
+    np.savez_compressed(out / "static.npz", lat=st.lat.values, lon=st.lon.values,
+                        **{k: st[k].values for k in STATIC_VARS})
     (out / "config.yaml").write_text(yaml.safe_dump({k: v for k, v in cfg.items() if k != "paths"}, sort_keys=False))
     (out / "feature_list.json").write_text(json.dumps({"classifier": BASE_FEATURES, "exceed": EXCEED_FEATURES}, indent=1))
     card = {"model_set_id": model_set_id, "config_sha256": config_sha256(cfg), "git_commit": commit,
             "backtest_git_commit": next(iter(info.values())).get("git_commit"), "data_snapshot": snapshot,
             "seasons": seasons, "leads": leads, "classifier": {"rounds": rounds, "temperature": temperature,
-            "fold_best_iterations": best}, "exceed": exceed_card,
+            "fold_best_iterations": best}, "regime_days": regime_days, "exceed": exceed_card,
             "gate_from": str(reports[-1].parent.name) if reports else None,
             "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "seconds": round(time.time() - t0, 1)}
     (out / "model_card.json").write_text(json.dumps(card, indent=2, default=str))
@@ -165,11 +175,24 @@ class ModelSet:
         bad = [k for k, h in stored.items() if _sha256(self.path / k) != h]
         if bad:
             raise ValueError(f"model set {self.path.name}: files changed since fit-final: {bad}")
+        self.hashes = stored
+        curves = self.path / "qm" / "curves.json"
+        self.curves = json.loads(curves.read_text()) if curves.exists() else None
+        self.regime_days = self.card.get("regime_days")
         self.classifier = lgb.Booster(model_file=str(self.path / "classifier" / "booster.txt"))
         self.temperature = json.loads((self.path / "classifier" / "temperature.json").read_text())["T"]
         frame = pd.read_parquet(self.path / "qm" / "experts.parquet")
         n0 = float(self.config["qm"]["n0_days"])
         self.experts = {v: ExpertSet.from_frame(frame[frame.variant == v], n0) for v in ("A", "B")}
+        z = np.load(self.path / "static.npz")
+        missing = [k for k in STATIC_VARS if k not in z.files]
+        if missing:
+            raise ValueError(f"model set {self.path.name}: static.npz lacks {missing}; rerun fit-final")
+        self.static = xr.Dataset({k: (("lat", "lon"), z[k]) for k in STATIC_VARS},
+                                 coords={"lat": z["lat"], "lon": z["lon"]})
+        self.shape = self.static["land"].shape
+        gate = self.path / "gate" / "skill_gate.parquet"
+        self.gate = pd.read_parquet(gate) if gate.exists() else None
         self.exceed = []
         for t in sorted(float(x) for x in self.config["exceed"]["thresholds"]):
             name = fmt_threshold(t)
@@ -184,10 +207,12 @@ class ModelSet:
     def predict(self, df: pd.DataFrame) -> pd.DataFrame:
         """df: feature rows for one init (BASE_FEATURES + keys). Returns p_*, A, B and p_exc_* columns."""
         from scipy.special import softmax
+        from regimerain.classify.model import smooth_on_grid
         from regimerain.correct.mixture import correct_mixture
         from regimerain.exceed.model import prob_column
         z = np.asarray(self.classifier.predict(df[BASE_FEATURES], raw_score=True)).reshape(len(df), -1)
         P = softmax(z / self.temperature, axis=1)
+        P = smooth_on_grid(df, P, self.shape, int(self.config["classifier"].get("smooth_size", 3)))  # as in backtest
         q = self.config["qm"]
         out = df[KEYS].copy()
         for k, c in enumerate(REGIME_PROB_FEATURES):
@@ -205,3 +230,27 @@ class ModelSet:
             for k, (t, _, _) in enumerate(self.exceed):
                 out[prob_column(t)] = Pm[:, k].astype("float32")
         return out
+
+    def gate_served(self, out: pd.DataFrame, static: xr.Dataset | None = None) -> np.ndarray:
+        """True where the corrected rain is served, False where the skill gate is OFF (raw is served instead).
+
+        Lookup per row: the unit (zone x geo) x lead x predicted regime row of the gate table, else the
+        unit x lead 'all' row. No gate table, or a unit the gate never scored: served (and disclosed).
+        """
+        from regimerain.features.schema import SYNOPTIC
+        from regimerain.gate.gate import OFF
+        if self.gate is None:
+            return np.ones(len(out), bool)
+        st = self.static if static is None else static
+        zone = st["zone"].values[out.lat_idx, out.lon_idx].astype(int)
+        geo = st["geo"].values[out.lat_idx, out.lon_idx].astype(int)
+        regime = np.array(SYNOPTIC)[out[REGIME_PROB_FEATURES].to_numpy().argmax(axis=1)]
+        g = self.gate.set_index(["zone", "geo", "lead", "regime"])["gate"]
+        g = g[~g.index.duplicated()]
+        keys = pd.MultiIndex.from_arrays([zone, geo, out.lead.astype(int).to_numpy(), regime])
+        own = g.reindex(keys).to_numpy()
+        keys_all = pd.MultiIndex.from_arrays([zone, geo, out.lead.astype(int).to_numpy(), np.full(len(out), "all")])
+        fallback = g.reindex(keys_all).to_numpy()
+        gate = np.where(np.isnan(own.astype(float)), fallback.astype(float), own.astype(float))
+        return ~(gate == OFF)
+

@@ -18,6 +18,8 @@ from regimerain.label.depression import haversine_km
 from regimerain.static.basic import TERRAIN_VARS, load_static
 from regimerain.truth import load_truth
 
+DYN_VARS = ("u850", "v850", "mslp", "w500", "pw", "ivtx", "ivty")
+
 
 def _index_of(sub: np.ndarray, full: np.ndarray) -> np.ndarray:
     idx = np.searchsorted(full, sub)
@@ -79,8 +81,51 @@ def _rmm(cfg):
     return pd.read_parquet(p) if p.exists() else None
 
 
-def build_season_lead(cfg: dict, year: int, lead: int, static: xr.Dataset, log=print) -> pd.DataFrame:
+def cmz_mask(cfg: dict, static: xr.Dataset) -> np.ndarray:
+    cb = cfg["labels"]["cmz_box"]
+    LATg, LONg = np.meshgrid(static.lat.values, static.lon.values, indexing="ij")
+    land = static["land"].values.astype(bool)
+    return land & (LATg >= cb[0]) & (LATg <= cb[1]) & (LONg >= cb[2]) & (LONg <= cb[3])
+
+
+def forecast_rows(cfg: dict, init, lead: int, rain2d: np.ndarray, d: dict, latd, lond, static: xr.Dataset,
+                  rmm: pd.DataFrame | None, cmz: np.ndarray | None = None) -> pd.DataFrame:
+    """Feature rows of one (init, lead) for every land cell: everything known at forecast time, no truth.
+
+    Shared by the training table (`build_season_lead`) and live runs (`regimerain.runs.live`), so the
+    model sees features computed the same way in both.
+    """
     from regimerain.ingest.mjo import value_on
+    init = pd.Timestamp(init)
+    lat_r, lon_r = static.lat.values, static.lon.values
+    land = static["land"].values.astype(bool)
+    iy, ix = np.nonzero(land)
+    cmz = cmz_mask(cfg, static) if cmz is None else cmz
+    rain2d = np.asarray(rain2d, "float64")
+    g = grids_for_init(rain2d, d, latd, lond, lat_r, lon_r, cfg["features"])
+    g["f_cmz_rain"] = float(np.nanmean(rain2d[cmz])) if cmz.any() else 0.0
+    g["f_cmz_wetfrac"] = float(np.mean(rain2d[cmz] >= 2.5)) if cmz.any() else 0.0
+    row = {"lat_idx": iy.astype("int16"), "lon_idx": ix.astype("int16"),
+           "lat": lat_r[iy].astype("float32"), "lon": lon_r[ix].astype("float32")}
+    for k, a in g.items():
+        row[k] = (np.asarray(a)[iy, ix] if np.ndim(a) == 2 else np.full(len(iy), a)).astype("float32")
+    for k in ("geo", "zone"):
+        row[k] = static[k].values[iy, ix].astype("int8")
+    for k in TERRAIN_VARS:
+        row[k] = static[k].values[iy, ix].astype("float32")
+    m = value_on(rmm, init) if rmm is not None else {"rmm1": 0.0, "rmm2": 0.0, "phase": 0, "amplitude": 0.0}
+    row.update(mjo_rmm1=np.float32(m["rmm1"]), mjo_rmm2=np.float32(m["rmm2"]),
+               mjo_amp=np.float32(m["amplitude"]), mjo_phase=np.int8(m["phase"]))
+    valid = init.normalize() + pd.Timedelta(days=lead - 1)
+    doy = valid.day_of_year
+    row.update(doy_sin=np.float32(np.sin(2 * np.pi * doy / 365.25)), doy_cos=np.float32(np.cos(2 * np.pi * doy / 365.25)))
+    df = pd.DataFrame(row)
+    df["init"], df["valid"] = init, valid
+    df.loc[df.f_rain < float(cfg["labels"]["dry_threshold_mm"]), "f_rain"] = 0.0     # same drizzle cut as truth
+    return df
+
+
+def build_season_lead(cfg: dict, year: int, lead: int, static: xr.Dataset, log=print) -> pd.DataFrame:
     raw = Path(cfg["paths"]["raw"]) / "hres"
     rain = xr.open_zarr(raw / f"rain_{year}.zarr")["f_rain"].sel(lead=lead).load()
     dz = xr.open_zarr(raw / f"dyn_{year}.zarr").sel(lead=lead).load()
@@ -94,43 +139,21 @@ def build_season_lead(cfg: dict, year: int, lead: int, static: xr.Dataset, log=p
     truth = load_truth(cfg, [year])
     rmm = _rmm(cfg)
     days = set(jjas_days(year))
-    cb = cfg["labels"]["cmz_box"]
-    LATg, LONg = np.meshgrid(lat_r, lon_r, indexing="ij")
-    cmz = land & (LATg >= cb[0]) & (LATg <= cb[1]) & (LONg >= cb[2]) & (LONg <= cb[3])
-    fcfg = cfg["features"]
+    cmz = cmz_mask(cfg, static)
     frames = []
     for i, init in enumerate(pd.DatetimeIndex(rain.init.values)):
         valid = init.normalize() + pd.Timedelta(days=lead - 1)
         if valid not in days:
             continue
-        d = {k: dz[k].isel(init=i).values.astype("float64") for k in ("u850", "v850", "mslp", "w500", "pw", "ivtx", "ivty")}
-        rain2d = rain.isel(init=i).values.astype("float64")
-        g = grids_for_init(rain2d, d, latd, lond, lat_r, lon_r, fcfg)
-        g["f_cmz_rain"] = float(np.nanmean(rain2d[cmz])) if cmz.any() else 0.0
-        g["f_cmz_wetfrac"] = float(np.mean(rain2d[cmz] >= 2.5)) if cmz.any() else 0.0
-        row = {"lat_idx": iy.astype("int16"), "lon_idx": ix.astype("int16"),
-               "lat": lat_r[iy].astype("float32"), "lon": lon_r[ix].astype("float32")}
-        for k, a in g.items():
-            row[k] = (np.asarray(a)[iy, ix] if np.ndim(a) == 2 else np.full(len(iy), a)).astype("float32")
-        for k in ("geo", "zone"):
-            row[k] = static[k].values[iy, ix].astype("int8")
-        for k in TERRAIN_VARS:
-            row[k] = static[k].values[iy, ix].astype("float32")
-        m = value_on(rmm, init) if rmm is not None else {"rmm1": 0.0, "rmm2": 0.0, "phase": 0, "amplitude": 0.0}
-        row.update(mjo_rmm1=np.float32(m["rmm1"]), mjo_rmm2=np.float32(m["rmm2"]),
-                   mjo_amp=np.float32(m["amplitude"]), mjo_phase=np.int8(m["phase"]))
-        doy = valid.day_of_year
-        row.update(doy_sin=np.float32(np.sin(2 * np.pi * doy / 365.25)), doy_cos=np.float32(np.cos(2 * np.pi * doy / 365.25)))
-        row["o_rain"] = truth.sel(time=valid).values[iy, ix].astype("float32")
-        row["y_synoptic"] = labels["y_synoptic"].sel(time=valid).values[iy, ix].astype("int8")
-        df = pd.DataFrame(row)
-        df["init"], df["valid"] = init, valid
+        d = {k: dz[k].isel(init=i).values.astype("float64") for k in DYN_VARS}
+        df = forecast_rows(cfg, init, lead, rain.isel(init=i).values, d, latd, lond, static, rmm, cmz)
+        df["o_rain"] = truth.sel(time=valid).values[iy, ix].astype("float32")
+        df["y_synoptic"] = labels["y_synoptic"].sel(time=valid).values[iy, ix].astype("int8")
         frames.append(df)
     out = pd.concat(frames, ignore_index=True)
     out = out[out.o_rain.notna()].reset_index(drop=True)
     dry = float(cfg["labels"]["dry_threshold_mm"])
-    for c in ("o_rain", "f_rain"):
-        out.loc[out[c] < dry, c] = 0.0
+    out.loc[out.o_rain < dry, "o_rain"] = 0.0
     if rmm is None:
         log(f"features {year} L{lead}: WARNING no MJO file - MJO features set to neutral")
     return out

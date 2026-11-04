@@ -19,7 +19,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 PLANNED = {
     "run --source hres": "docs/BACKEND_BUILD_PLAN.md phase B4 (model set on an HRES init)",
-    "run --source gfs": "docs/BACKEND_BUILD_PLAN.md phase B5 / MODEL_SPEC section 18 (live GFS run)",
 }
 
 
@@ -68,6 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--source", choices=["mock", "replay", "hres", "gfs"], default="gfs")
     p.add_argument("--init", default=None, help="init date YYYY-MM-DD (mock default 2022-07-14; gfs: today|cached)")
     p.add_argument("--seed", type=int, default=None, help="mock only")
+    p.add_argument("--model-set", default=None, metavar="ID", help="gfs: folder under paths.models (default: newest)")
     p.add_argument("--publish", default=None, metavar="NAME",
                    help="also copy the web export to mvp/web/public/run/NAME (static hosting, `npm run dev`); "
                         "replay without --init publishes NAME-depression, NAME-active, NAME-break")
@@ -199,10 +199,38 @@ def cmd_run_replay(cfg: dict, args) -> int:
     return 0
 
 
+def cmd_run_gfs(cfg: dict, args) -> int:
+    """Live run: one GFS init through the fitted model set (MODEL_SPEC 18, BACKEND_BUILD_PLAN B5)."""
+    from datetime import date, datetime, timezone
+    from regimerain.final import ModelSet
+    from regimerain.ingest.gfs import fetch_gfs
+    from regimerain.runs.export_web import export_run
+    from regimerain.runs.live import latest_model_set, live_fields
+    from regimerain.runs.replay import latest_report
+    init = date.fromisoformat(args.init) if args.init and args.init != "today" else datetime.now(timezone.utc).date()
+    ms = ModelSet(Path(cfg["paths"]["models"]) / args.model_set if args.model_set else latest_model_set(cfg))
+    print(f"model set {ms.path.name}; GFS init {init} 00 UTC")
+    try:
+        forecast = fetch_gfs(cfg, init, list(cfg["leads"]))
+    except Exception as e:                                  # noqa: BLE001 - say what to do, then fail
+        print(f"GFS download failed for {init} ({type(e).__name__}: {e}). The 00 UTC run is complete about "
+              f"5 h later; try `--init` with yesterday's date.", file=sys.stderr)
+        return 1
+    fields = live_fields(cfg, init, ms, forecast)
+    report = latest_report(cfg)
+    web = export_run(fields, cfg, cfg["paths"]["runs"], report=report, curves=ms.curves, regime_days=ms.regime_days)
+    print(f"run {web.parent.name} (live GFS, model set {ms.path.name}) -> {web}")
+    if args.publish:
+        print(f"published -> {_publish(web, args.publish)}")
+    return 0
+
+
 def cmd_run(cfg: dict, args) -> int:
     from datetime import date
     if args.source == "replay":
         return cmd_run_replay(cfg, args)
+    if args.source == "gfs":
+        return cmd_run_gfs(cfg, args)
     if args.source != "mock":
         raise NotBuiltYet(f"run --source {args.source}")
     from regimerain.runs.export_web import export_run
@@ -257,6 +285,9 @@ def cmd_contract(cfg: dict, args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):        # Windows consoles: never crash on a library's emoji output
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     args = build_parser().parse_args(argv)
     cfg = load_config(args.config, args.data_root)
     if getattr(args, "mode", None):

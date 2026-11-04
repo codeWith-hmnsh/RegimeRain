@@ -163,6 +163,27 @@ def test_pilot_end_to_end(cfg_file, capsys):
     assert (out["p_exc_115.6"] <= out["p_exc_64.5"] + 1e-7).all()
     card = json.loads((model_dir / "model_card.json").read_text())
     assert card["model_set_id"] == model_dir.name and card["classifier"]["rounds"] >= 10
+    # live run: a forecast in the fetch_gfs layout (here the synthetic HRES of 1 Jul 2020) through the model set
+    from regimerain.runs.export_web import export_run
+    from regimerain.runs.live import live_fields
+    init = np.datetime64("2020-07-01")
+    rain = xr.open_zarr(root / "raw" / "hres" / "rain_2020.zarr")["f_rain"].sel(init=init)
+    dz = xr.open_zarr(root / "raw" / "hres" / "dyn_2020.zarr").sel(init=init)
+    forecast = {"rain": {1: rain.sel(lead=1).values}, "lat": rain.lat.values, "lon": rain.lon.values,
+                "dyn": {1: {k: dz[k].sel(lead=1).values for k in dz.data_vars}},
+                "latd": dz.lat.values, "lond": dz.lon.values}
+    from datetime import date
+    f = live_fields(json.loads(json.dumps(ms.config)) | {"paths": {"raw": str(root / "raw")}}, date(2020, 7, 1),
+                    ms, forecast)
+    assert f.kind == "model" and f.source == "gfs" and f.truth is None
+    assert {"wind850", "p_heavy", "p_very_heavy", "corrected_global"} <= set(f.layers())
+    web = export_run(f, ms.config | {"paths": {"runs": str(root / "runs")}}, root / "runs",
+                     curves=ms.curves, regime_days=ms.regime_days)
+    assert check_folder(web) == []
+    man = json.loads((web / "manifest.json").read_text())
+    assert man["kind"] == "model" and man["synthetic"] is False and man["forecast_source"] == "NCEP GFS 0.25"
+    assert man["provenance"]["model_set_id"] == model_dir.name and "transfer" in man["provenance"]["note"]
+    assert man["provenance"]["model_hashes"] and man["regime_days"]
     with open(model_dir / "config.yaml", "a", encoding="utf-8") as fh:
         fh.write("# edited after fit-final\n")
     with pytest.raises(ValueError, match="changed since fit-final"):

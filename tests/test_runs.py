@@ -133,7 +133,7 @@ def test_cli_run_mock(tmp_path, capsys):
 
 def test_cli_unbuilt_sources_exit_2():
     with pytest.raises(SystemExit) as e:
-        cli.main(["run", "--source", "gfs"])
+        cli.main(["run", "--source", "hres"])
     assert e.value.code == 2
 
 

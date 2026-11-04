@@ -39,7 +39,8 @@ Build state (2 Nov 2026):
 | Replay runs: real held-out backtest days for the web (`regimerain run --source replay [--init DATE] [--publish NAME]`) | Built and tested (`regimerain/runs/replay.py`); needs the Kaggle backtest cache |
 | `regimerain serve`: read-only API + built web app on one port | Built and tested (`regimerain/api/app.py`) |
 | `fit-final`: every model refit on all seasons → hashed model set (`regimerain/final.py`, `ModelSet` loader) | Built and tested |
-| HRES / live GFS runs (feature building for one new init, GFS ingest) | Not built (CLI exits 2 and names the plan section) |
+| Live GFS run: today's GFS through the model set, skill gate applied (`regimerain run --source gfs [--init DATE]`) | Built and tested (`regimerain/ingest/gfs.py`, `regimerain/runs/live.py`, explainer `docs/EXPLAINED_LIVE_GFS.md`); needs a model set from Kaggle |
+| Model-set run on an HRES init (`run --source hres`) | Not built (CLI exits 2 and names the plan section) |
 
 Pilot v1 headline: quantile mapping improves heavy-rain detection (Day 1, ≥64.5 mm: POD 0.171 → 0.204), but regime-aware QM does not yet beat global QM, because the classifier trains on one season per fold. Pilot v2 (`config/v2.yaml`, 7 seasons) is the next run.
 

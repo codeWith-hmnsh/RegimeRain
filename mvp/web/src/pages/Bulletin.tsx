@@ -42,6 +42,7 @@ export default function Bulletin() {
             </dl>
           </header>
           {manifest.synthetic && <p className="mt-4 rounded-[3px] bg-[#fff1c9] px-3 py-2 font-mono text-[12px] text-[#5f4300]">SAMPLE RUN. Invented values. Do not use for any decision.</p>}
+          {!manifest.synthetic && manifest.provenance.note && <p data-testid="provenance-note" className="mt-4 font-mono text-[11.5px] text-ink-2">{manifest.provenance.note}</p>}
 
           <table className="mt-6 w-full text-[13.5px]">
             <thead>
