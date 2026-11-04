@@ -96,6 +96,8 @@ Spec: `docs/MODEL_SPEC.md` §12. Code: `regimerain/exceed/`, `regimerain/classif
 - [x] Reliability diagram + Brier score in the report (plus BSS, ROC/PR-AUC, POD/FAR at 0.3 and 0.5); cross-fitted inputs with a leakage test
 - [ ] Trained on Kaggle through the backtest; numbers in `PILOT_RESULTS.md`
 
+- [x] Error regimes + variant C (k-means on daily error descriptors, k by silhouette × bootstrap stability; `docs/EXPLAINED_ERROR_REGIMES.md`)
+
 ## Step 5: skill gate (week 5)
 
 Spec: `docs/MODEL_SPEC.md` §14. Per region × regime × lead: use the correction only where it helped.

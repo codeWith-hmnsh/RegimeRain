@@ -100,7 +100,7 @@ def test_pilot_end_to_end(cfg_file, capsys):
     t = pd.read_parquet(root / "data" / "table" / "lead=1" / "season=2019" / "part.parquet")
     assert len(t) == 122 * (len(LAT) * len(LON) - 1)                   # every JJAS day x land cell
     assert t.f_llj_index.nunique() > 50 and t.o_rain.notna().all()
-    run(["backtest", "--variants", "raw,A,B"], cfgs)
+    run(["backtest", "--variants", "raw,A,B,C"], cfgs)
     for y in SEASONS:
         assert (root / "cache" / f"fold={y}" / "DONE").exists()
     capsys.readouterr()
@@ -111,7 +111,12 @@ def test_pilot_end_to_end(cfg_file, capsys):
     rep = json.loads((rep_dir / "verification_report.json").read_text())
     pooled = {r["variant"]: r for r in rep["rows"]
               if r["fold"] == "pooled" and r["synoptic"] == "all" and r["threshold"] == 15.6 and r["lead"] == 1}
-    assert set(pooled) == {"raw", "A", "B"}
+    assert set(pooled) == {"raw", "A", "B", "C"}
+    # error regimes (variant C): clusters per fold and lead, named, with a crosstab and test agreement
+    er = json.loads((root / "cache" / "fold=2021" / "errreg.json").read_text())["leads"]["1"]
+    assert 4 <= er["k"] <= 8 and len(er["names"]) == er["k"] and sum(er["fit_days_per_cluster"]) > 50
+    assert 0 <= er["test_agreement"] <= 1 and er["crosstab_cluster_by_synoptic"]
+    assert len(rep["error_regimes"]) == 3 and "## Error regimes" in (rep_dir / "summary.md").read_text(encoding="utf-8")
     # regime-dependent bias -> regime-aware correction should beat raw on RMSE in this synthetic world
     assert pooled["B"]["rmse"] < pooled["raw"]["rmse"]
     for png in ("metrics_heavy.png", "fss_vs_scale.png", "map_wettest_day.png", "reliability_exceed.png"):

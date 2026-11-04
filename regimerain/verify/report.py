@@ -189,6 +189,17 @@ def summary_markdown(report: dict) -> str:
                   "OFF = correction significantly worse: the live product serves raw NWP there, flagged.", ""]
         lines += [f"- OFF: {o['unit']}, D{o['lead']}, regime {o['regime']} (SS {_fmt(o['ss'])}, "
                   f"90% CI [{_fmt(o['ss_lo'])}, {_fmt(o['ss_hi'])}])" for o in gs["off"]] or ["- No unit is OFF."]
+    er = report.get("error_regimes")
+    if er:
+        L = str(min(int(k) for k in er[0]["leads"]))
+        lines += ["", f"## Error regimes (variant C, D{L}): clusters of how the forecast was wrong", "",
+                  "Fitted per fold on its fit seasons only. Agreement = predicted vs truth-assigned cluster on the "
+                  "test season; compare with always guessing the biggest cluster.", "",
+                  "| Test season | k | Silhouette | Stability (ARI) | Agreement / majority | Clusters |", "|---|---|---|---|---|---|"]
+        for f in er:
+            d = f["leads"][L]
+            lines.append(f"| {f['test']} | {d['k']} | {_fmt(d['silhouette'])} | {_fmt(d['stability_ari'])} | "
+                         f"{_fmt(d['test_agreement'])} / {_fmt(d['test_majority_baseline'])} | {'; '.join(d['names'])} |")
     lines += ["", "## Regime classifier (test seasons)", "", "| Test season | Accuracy | Macro-F1 | Recall active / break / depression / normal |",
               "|---|---|---|---|"]
     for c in report["classifier"]:
@@ -309,6 +320,9 @@ def build_report(cfg: dict, log=print) -> Path:
         "exceedance": exceedance(preds, cfg),
         "classifier": classifier,
     }
+    if "C" in variants:
+        report["error_regimes"] = [{"test": s, **json.loads((fold_dir(cfg["paths"]["cache"], s) / "errreg.json").read_text())}
+                                   for s in cfg["seasons"]]
     gate = None
     if "B" in variants:
         from regimerain.gate.gate import gate_summary, skill_gate

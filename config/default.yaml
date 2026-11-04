@@ -89,6 +89,12 @@ qm:
   p_min: 0.1
   p_hard: 0.8
 
+errreg:                      # error regimes and variant C (MODEL_SPEC 10); clusters fitted per fold and lead
+  k_range: [4, 8]            # candidate cluster counts; k = argmax silhouette x bootstrap stability
+  n_boot: {fast: 10, full: 20}
+  params: {learning_rate: 0.03, num_leaves: 15, min_data_in_leaf: 20, feature_fraction: 0.8, bagging_fraction: 0.8,
+           bagging_freq: 1, lambda_l2: 5.0, num_boost_round: 1000, early_stopping_rounds: 50}
+
 exceed:
   enabled: true              # heavy-rain probability model M4 (MODEL_SPEC 12); needs variant B in the backtest
   thresholds: [64.5, 115.6]

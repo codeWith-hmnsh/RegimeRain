@@ -29,7 +29,7 @@ from regimerain.data import load_table
 from regimerain.features.schema import REGIME_PROB_FEATURES
 from regimerain.folds import fold_dir, is_done, lomo_folds, mark_done
 
-BUILT_VARIANTS = ("raw", "A", "B")
+BUILT_VARIANTS = ("raw", "A", "B", "C")
 KEEP = ["init", "valid", "lead", "season", "lat_idx", "lon_idx", "zone", "geo", "y_synoptic", "o_rain"]
 
 
@@ -115,6 +115,11 @@ def run_fold(cfg: dict, fold: dict, variants, log=print) -> dict:
         EB.sample_counts().to_csv(out_dir / "qm_counts_B.csv", index=False)
         if cfg.get("exceed", {}).get("enabled", False):
             run_exceed(cfg, fold, tr, te, P, preds, shape, out_dir, log)
+    if "C" in variants:
+        from regimerain.errreg.errreg import run_variant_c
+        preds["C"], diag_c, EC = run_variant_c(cfg, fold, tr, te, log=log)
+        EC.sample_counts().to_csv(out_dir / "qm_counts_C.csv", index=False)
+        (out_dir / "errreg.json").write_text(json.dumps(diag_c, indent=2))
     from regimerain.correct.curves import display_curves
     (out_dir / "qm_curves.json").write_text(json.dumps(display_curves(tr, float(qcfg["n0_days"]))))
     preds.to_parquet(out_dir / "predictions.parquet", index=False)
