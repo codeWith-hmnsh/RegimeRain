@@ -1,7 +1,7 @@
 name: pages
 
 # Publishes the web app to GitHub Pages: https://<user>.github.io/RegimeRain/
-# One-time setup: repository Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+# One-time setup (done 4 Nov 2026): repository Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
 # The site is static: it reads the run folders published into mvp/web/public/run/ (`regimerain run --publish`).
 on:
   push:
