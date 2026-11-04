@@ -62,11 +62,19 @@ Settings every time: *Accelerator: None (CPU)*, *Internet: On*. Long runs: *Save
 
 | Run | Set in cell 2 | Attach | After it finishes, save output as dataset |
 |---|---|---|---|
-| 1 | `STAGE="data"` | `ps26080-imd` | `ps26080-table` |
+| 0a | `STAGE="hres"`, `YEARS="2016,2017,2018"` | nothing | `ps26080-hres-a` |
+| 0b | `STAGE="hres"`, `YEARS="2019,2020,2021,2022"` | nothing | `ps26080-hres-b` |
+| 1 | `STAGE="data"` | `ps26080-imd`, `ps26080-mjo`, `ps26080-hres-a`, `ps26080-hres-b` | `ps26080-table` |
 | 2a | `STAGE="backtest"`, `FOLDS="2016,2017,2018"`, `COMMIT=<sha>` | `ps26080-imd`, `ps26080-table` | `ps26080-folds-a` |
 | 2b | `FOLDS="2019,2020"` | same | `ps26080-folds-b` |
 | 2c | `FOLDS="2021,2022"` | same | `ps26080-folds-c` |
 | 3 | `STAGE="final"` | all of the above | `ps26080-models` |
+
+Runs 0a/0b download the HRES forecasts. WeatherBench2 stores one global field per forecast step, so an
+India-only read still pulls about 2.5 GB per forecast (about 320 GB per season). The first attempt put all seven
+seasons in one run, printed nothing for 8 hours (Python buffers output when piped), and was heading for Kaggle's
+12-hour limit at that speed. Fixes: downloads run 8 at a time, the log is unbuffered and shows an ETA, and each chunk of
+years is saved as its own dataset (netCDF files, because zarr's hidden metadata files may not survive a dataset).
 
 Run 3 (`final`) runs `report` (scores + skill gate), then `fit-final` (the model set for live runs).
 

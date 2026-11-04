@@ -11,6 +11,8 @@ moisture column integrals are done here, so pressure levels never need to be sto
 from __future__ import annotations
 
 import shutil
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -118,15 +120,27 @@ def ingest_season(ds: xr.Dataset, year: int, cfg: dict, leads=(1, 2, 3, 4, 5), f
         return out
     inits = season_inits(ds, year, max(leads))
     batch = int(cfg["sources"].get("hres_batch_inits", 4))
+    threads = int(cfg["sources"].get("hres_io_threads", 8))
     kind = cfg["sources"]["hres_precip_kind"]
-    rains, dyns = [], []
-    for i in range(0, len(inits), batch):
-        b = inits[i:i + batch]
-        rains.append(rain_batch(ds, b, leads, kind, cfg["grid"]["rain_box"]))
-        dyns.append(dyn_batch(ds, b, leads, cfg["grid"]["dyn_box"]))
-        log(f"hres {year}: {min(i + batch, len(inits))}/{len(inits)} inits")
-    rain = xr.concat(rains, dim="init").to_dataset(name="f_rain")
-    dyn = xr.concat(dyns, dim="init")
+    batches = [inits[i:i + batch] for i in range(0, len(inits), batch)]
+
+    def fetch(b):
+        return rain_batch(ds, b, leads, kind, cfg["grid"]["rain_box"]), dyn_batch(ds, b, leads, cfg["grid"]["dyn_box"])
+
+    # WeatherBench2 stores one global field per (init, lead) chunk, so an India subset still downloads about
+    # 2.5 GB per init. The time is network wait, so batches are fetched in parallel threads.
+    t0, done, results = time.time(), 0, [None] * len(batches)
+    with ThreadPoolExecutor(max_workers=max(1, threads)) as pool:
+        futures = {pool.submit(fetch, b): k for k, b in enumerate(batches)}
+        for fut in as_completed(futures):
+            k = futures[fut]
+            results[k] = fut.result()
+            done += len(batches[k])
+            dt = time.time() - t0
+            eta = dt / done * (len(inits) - done)
+            log(f"hres {year}: {done}/{len(inits)} inits, {dt / 60:.1f} min, eta {eta / 60:.0f} min")
+    rain = xr.concat([r for r, _ in results], dim="init").to_dataset(name="f_rain")
+    dyn = xr.concat([d for _, d in results], dim="init")
     rain.attrs.update(source="WeatherBench2 IFS HRES", units="mm per IMD rain day (03-03 UTC)",
                       precip_kind=kind)
     _write_atomic(rain, out["rain"])
