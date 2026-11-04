@@ -36,8 +36,14 @@ jobs:
       - run: npm run build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
-      - name: Deep links (/forecast, /scorecard ...) load the app instead of a 404 page
-        run: cp dist/index.html dist/404.html
+      # Each page gets its own copy of index.html, so a deep link answers HTTP 200, not the 404 fallback
+      # (GitHub Pages redirects /forecast to /forecast/). 404.html still catches mistyped paths.
+      - name: Deep links (/forecast, /scorecard ...) load the app
+        run: |
+          for page in forecast scorecard method bulletin; do
+            mkdir -p "dist/$page" && cp dist/index.html "dist/$page/index.html"
+          done
+          cp dist/index.html dist/404.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: mvp/web/dist
