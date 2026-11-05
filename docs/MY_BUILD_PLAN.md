@@ -81,9 +81,9 @@ Run 3 (`final`) runs `report` (scores + skill gate), then `fit-final` (the model
 What gets trained here: the regime classifier (LightGBM, 4 classes) and the quantile-mapping correctors, once per
 held-out season.
 
-- [ ] Run 1 done, `selftest --quick` passed in the log
-- [ ] Runs 2a–2c done (all 7 folds have `DONE`)
-- [ ] Run 3: `verification_report.json` downloaded; numbers copied into `docs/PILOT_RESULTS.md` (v2 section)
+- [x] Run 1 done, `selftest --quick` passed in the log (16 passed; 25.5 min, 5 Nov 2026)
+- [x] Runs 2a–2c done (all 7 folds have `DONE`; 21–27 min per fold), uploaded together as `ps26080-folds`
+- [x] Run 3: `verification_report.json` downloaded; numbers copied into `docs/PILOT_RESULTS.md` (v2 section); model set `e0cae019e7f5` in `ps26080-models`
 - [ ] I can explain: what is leave-one-monsoon-out, and why not a random split?
 
 ## Step 4: my model, heavy-rain probability (weeks 3–4)
@@ -94,7 +94,7 @@ Spec: `docs/MODEL_SPEC.md` §12. Code: `regimerain/exceed/`, `regimerain/classif
 - [x] Isotonic calibration on the inner-validation season only (never the test season)
 - [x] `P(very heavy) ≤ P(heavy)` enforced; test for it
 - [x] Reliability diagram + Brier score in the report (plus BSS, ROC/PR-AUC, POD/FAR at 0.3 and 0.5); cross-fitted inputs with a leakage test
-- [ ] Trained on Kaggle through the backtest; numbers in `PILOT_RESULTS.md`
+- [x] Trained on Kaggle through the backtest; numbers in `PILOT_RESULTS.md` (Day 1 ≥64.5 mm: ROC-AUC 0.894, BSS 0.115)
 
 - [x] Error regimes + variant C (k-means on daily error descriptors, k by silhouette × bootstrap stability; `docs/EXPLAINED_ERROR_REGIMES.md`)
 
@@ -114,12 +114,12 @@ Spec: `docs/BACKEND_BUILD_PLAN.md` B2–B4.
 - [x] `regimerain serve` (FastAPI) serves the API + built web app (smoke test passes through it)
 - [x] Live run on today's GFS: `regimerain run --source gfs` (GFS ingest checked on real 15 Jul and 1 Aug 2026 inits; explainer `docs/EXPLAINED_LIVE_GFS.md`)
 - [x] Reasons per place: "why heavy rain here" from TreeSHAP on the heavy-rain model (`docs/EXPLAINED_REASONS.md`)
-- [ ] The synthetic banner is gone for real runs
+- [x] The synthetic banner is gone for real runs (default run: held-out 9 Aug 2019; `?run=sample` keeps the banner)
 
 ## Step 7: launch (week 7)
 
-- [ ] Deployed (Render / Vercel); link at the top of README
-- [ ] GitHub Actions runs `pytest` on every push; badge in README
+- [x] Deployed on GitHub Pages: https://codewith-hmnsh.github.io/RegimeRain/ (link at the top of README)
+- [x] GitHub Actions runs `pytest` on every push; badge in README
 - [ ] 2-minute demo video (problem → map → scorecard → honest limits)
 - [ ] README rewritten: one-line problem, diagram, results table from my report
 
@@ -128,13 +128,16 @@ Spec: `docs/BACKEND_BUILD_PLAN.md` B2–B4.
 - [ ] Explain the whole project in 2 minutes without notes
 - [ ] Answer: why LightGBM, not a neural network? Why can quantile mapping worsen RMSE?
       How did I prevent leakage? What did NOT work, and why?
-- [ ] Resume bullets written with my real numbers
+- [x] Resume bullets written with my real numbers (below; copy them from `docs/PILOT_RESULTS.md` if they change)
 
 ---
 
-## Resume bullet template (fill X/Y only from my report)
+## Resume bullets (numbers from backtest `20261105_45e44153`)
 
-> **RegimeRain — regime-aware monsoon rainfall correction** · Python, LightGBM, xarray, FastAPI, React · [live] · [GitHub]
-> - Built a pipeline that classifies the monsoon regime and applies regime-specific quantile-mapping correction to ECMWF forecasts over ~4,900 Indian grid cells (SIH 2026, team; my part: …).
-> - Trained a calibrated heavy-rain probability model (LightGBM + isotonic); ≥64.5 mm detection POD X → Y, ETS X → Y under leave-one-monsoon-out validation.
-> - Leakage-safe evaluation (fold-isolation tests, block-bootstrap CIs) and a React + MapLibre dashboard of raw vs corrected forecasts.
+> **RegimeRain: regime-aware monsoon rainfall forecast correction** · Python, LightGBM, scikit-learn, xarray, FastAPI, React, MapLibre · [live](https://codewith-hmnsh.github.io/RegimeRain/) · [GitHub](https://github.com/codeWith-hmnsh/RegimeRain)
+> - Built an ML pipeline that classifies the monsoon regime (active / break / depression / normal) from forecast-time data and corrects ECMWF HRES rainfall forecasts over 4,964 Indian grid cells, validated leave-one-monsoon-out on 7 seasons (2016-2022) × 5 lead days.
+> - Quantile-mapping correction raised heavy-rain (≥64.5 mm/day) detection at every lead with 90% bootstrap CIs excluding zero; Day 1 POD 0.152 → 0.183, ETS 0.084 → 0.092, frequency bias 0.83 → 1.01.
+> - Trained a calibrated heavy-rain probability model (LightGBM + isotonic, cross-fitted inputs): ROC-AUC 0.894 and Brier skill 0.115 over climatology on unseen seasons.
+> - Ran the full pipeline on Kaggle CPU (7 folds, ~25 min each), with leakage tests, a per-region skill gate that falls back to raw NWP where correction hurt, and a React + MapLibre site that replays real held-out days.
+
+Say it straight if asked: regime-aware correction is **not** yet clearly better than one global correction (significant only at Day 4-5, and tiny). That honest finding is a strength in an interview.
