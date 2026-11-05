@@ -7,7 +7,7 @@ import { Marquee } from '../components/Marquee'
 import { NumberTicker } from '../components/NumberTicker'
 import { FadeUp, RevealLines } from '../components/Reveal'
 import { MetricBars, QmChart, VerdictTag } from '../components/charts'
-import { GEO_ORDER, RAIN, REGIME, REGIME_ORDER } from '../lib/color'
+import { RAIN, REGIME, REGIME_ORDER } from '../lib/color'
 import { FSS_HEADLINE, METRIC_KEYS, METRIC_META, fmtDay, fmtLat, fmtLon, fmtMetric, verdict } from '../lib/format'
 import { pooledEntry, regimeEntries, score } from '../lib/verify'
 import { useRun } from '../lib/run'
@@ -33,6 +33,8 @@ export default function Landing() {
     return () => q.removeEventListener('change', f)
   }, [])
   const mark = useMemo(() => ({ lat: w.lat, lon: w.lon }), [w.lat, w.lon])
+  // terrain classes that really have their own curves in this run (basic static layers: plains only)
+  const nGeo = new Set(run.curves.filter((c) => c.geo !== 'all').map((c) => c.geo)).size
   const heavy = pooledEntry(ver, 'heavy')
 
   return (
@@ -64,7 +66,7 @@ export default function Landing() {
                 [<NumberTicker key="c" value={w.corrected_mm} decimals={1} duration={2.2} />, 'mm/day corrected, wettest point'],
                 [w.raw_mm.toFixed(1), 'mm/day raw forecast there'],
                 w.p_heavy != null ? [`${Math.round(w.p_heavy * 100)}%`, `chance of heavy rain (≥ ${m.thresholds_mm.heavy} mm)`] : [REGIME[w.regime].label, 'regime predicted there'],
-                [`${REGIME_ORDER.length}×${GEO_ORDER.length}`, 'regimes × terrain classes, each with its own curves'],
+                nGeo > 1 ? [`${REGIME_ORDER.length}×${nGeo}`, 'regimes × terrain classes, each with its own curves'] : [`${REGIME_ORDER.length}`, 'monsoon regimes, each with its own correction curve'],
               ].map(([v, label], i) => (
                 <div key={i} className="min-w-0">
                   <dt className="sr-only">{label}</dt>
@@ -84,7 +86,7 @@ export default function Landing() {
           </div>
           <p className="mt-2 text-[12px] leading-snug text-ink-2">
             +{grid.leads[w.lead].lead_hours} h ahead. Circle marks the wettest point: {fmtLat(w.lat)} {fmtLon(w.lon)}, a{' '}
-            <span className="inline-flex items-center gap-1 text-ink"><span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: REGIME[w.regime].color }} aria-hidden="true" />{REGIME[w.regime].label.toLowerCase()}</span> day. Lines show 850 hPa wind. Faded outside India.
+            <span className="inline-flex items-center gap-1 text-ink"><span className="inline-block h-2 w-2 rounded-[2px]" style={{ background: REGIME[w.regime].color }} aria-hidden="true" />{REGIME[w.regime].label.toLowerCase()}</span> day.{m.layers.includes('wind850') && ' Lines show 850 hPa wind.'} Faded outside India.
           </p>
         </div>
       </section>
