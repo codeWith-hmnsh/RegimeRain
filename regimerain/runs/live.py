@@ -20,6 +20,14 @@ from regimerain.features.build import _rmm, cmz_mask, forecast_rows
 from regimerain.features.schema import REGIME_PROB_FEATURES, SYNOPTIC
 from regimerain.runs.fields import RunFields
 
+def season_note(init: date) -> str:
+    """Warn when the init is outside the June-September monsoon the models were trained on."""
+    if 6 <= init.month <= 9:
+        return ""
+    return (" OUTSIDE THE MONSOON: the models were trained on June-September only, so the regime names and"
+            " corrections are not meaningful for this date; treat this run as a pipeline demo.")
+
+
 TRANSFER_NOTE = ("models fitted on ECMWF IFS HRES 2016-2022; applied to NOAA GFS here, so the correction is a "
                  "transfer between models (MODEL_SPEC 18.2)")
 
@@ -88,7 +96,7 @@ def live_fields(cfg: dict, init: date, model_set, forecast: dict, source: str = 
                     "config_sha256": card.get("config_sha256"), "git_commit": card.get("git_commit"),
                     "note": (f"{TRANSFER_NOTE}. Skill gate OFF on {int((~served).sum())} land cell-days "
                              f"(raw rain served there). MJO: {'latest RMM' if m else 'neutral (index missing or stale)'}. "
-                             f"Trained on seasons {card.get('seasons')}.")})
+                             f"Trained on seasons {card.get('seasons')}.{season_note(init)}")})
     fields.reasons = place_reasons(fields, ms, rows, out, k)
     return fields
 

@@ -57,3 +57,10 @@ def test_fetch_gfs_layout_on_working_grids():
     assert out["rain"][1].shape == (len(out["lat"]), len(out["lon"])) and np.allclose(out["rain"][2], 24.0)
     assert out["dyn"][1]["u850"].shape == (len(out["latd"]), len(out["lond"]))
     assert np.allclose(out["dyn"][2]["u850"], 10.0)
+
+
+def test_season_note_flags_inits_outside_the_monsoon():
+    from datetime import date
+    from regimerain.runs.live import season_note
+    assert season_note(date(2026, 7, 15)) == ""
+    assert "OUTSIDE THE MONSOON" in season_note(date(2026, 11, 5))
