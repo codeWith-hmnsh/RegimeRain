@@ -28,13 +28,17 @@ async function loadRun(id: string): Promise<Run> {
   return { manifest, grid, places: places.places, curves: curves.curves, land, india, verification }
 }
 
+/** The run a visitor sees without `?run=`: a real held-out hindcast from the backtest
+ *  (`regimerain run --source replay --publish hindcast`). `?run=sample` still opens the synthetic sample. */
+const DEFAULT_RUN = 'hindcast-depression'
+
 type State = { run: Run | null; error: string | null }
 const Ctx = createContext<State>({ run: null, error: null })
 
 export function RunProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ run: null, error: null })
   useEffect(() => {
-    const id = new URLSearchParams(location.search).get('run') ?? 'sample'
+    const id = new URLSearchParams(location.search).get('run') ?? DEFAULT_RUN
     loadRun(id).then(
       (run) => setState({ run, error: null }),
       (e: Error) => setState({ run: null, error: e.message }),

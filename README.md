@@ -2,7 +2,7 @@
 
 [![ci](https://github.com/codeWith-hmnsh/RegimeRain/actions/workflows/ci.yml/badge.svg)](https://github.com/codeWith-hmnsh/RegimeRain/actions/workflows/ci.yml)
 
-**Live site:** https://codewith-hmnsh.github.io/RegimeRain/ (shows the clearly labelled synthetic sample run until the Kaggle backtest results are published).
+**Live site:** https://codewith-hmnsh.github.io/RegimeRain/ shows a real held-out hindcast: 9 Aug 2019, Kerala/Karnataka floods. Every model behind it was trained without the 2019 season. `?run=hindcast-break` opens a break-monsoon day (9 Jul 2017), and `?run=sample` opens the synthetic sample.
 
 **Build an AI/ML system that identifies the prevailing monsoon rainfall regime, then applies a regime-specific bias correction to raw NWP rainfall forecasts.**
 Ministry of Earth Sciences (MoES) / NCMRWF · Software · Smart Automation.
@@ -25,27 +25,27 @@ notebooks/colab_pipeline.ipynb   Colab CPU notebook (primary): STAGE = data | ba
 notebooks/kaggle_pipeline.ipynb  Kaggle alternative, same stages
 ```
 
-Build state (2 Nov 2026):
+Build state (5 Nov 2026):
 
 | Part | State |
 |---|---|
 | `regimerain` ingest, basic static layers, labels, features, LOMO folds | Built |
-| Regime classifier (M1), QM variants A (global) and B (regime-aware), backtest, verification (six metrics + block bootstrap) | Built; pilot v1 measured (`docs/PILOT_RESULTS.md`) |
+| Regime classifier (M1), QM variants A (global) and B (regime-aware), backtest, verification (six metrics + block bootstrap) | Built; pilot v2 measured on 7 seasons × 5 leads (`docs/PILOT_RESULTS.md`) |
 | Run exporter, mock producer, web contract v2 | Built (`regimerain/runs/`) |
-| Web MVP (`mvp/web/`) | Built; shows synthetic data until a replay run exists |
-| Heavy-rain probability model M4 (LightGBM + isotonic, cross-fitted inputs) | Built and tested (`regimerain/exceed/`, explainer `docs/EXPLAINED_M4_HEAVY_RAIN.md`); Kaggle results pending |
+| Web MVP (`mvp/web/`) | Built; live, default run is a real held-out hindcast |
+| Heavy-rain probability model M4 (LightGBM + isotonic, cross-fitted inputs) | Built; measured: beats climatology at every lead (Day 1 ≥64.5 mm ROC-AUC 0.894, BSS 0.115) |
 | Skill gate (zone × terrain units until district boundaries are licensed) | Built and tested (`regimerain/gate/`, explainer `docs/EXPLAINED_SKILL_GATE.md`) |
 | Reasons behind each heavy-rain probability (TreeSHAP on M4, named places, Bulletin page) | Built and tested (`regimerain/explain/`, explainer `docs/EXPLAINED_REASONS.md`); live runs only |
 | Error regimes and variant C (clusters of forecast errors, predicted from forecast-time features, one QM expert set per cluster) | Built and tested (`regimerain/errreg/`, explainer `docs/EXPLAINED_ERROR_REGIMES.md`); backtest only |
 | Conditional mean, variant CM (Tweedie LightGBM on the M4 rows, expected rain ≥ 0) | Built and tested (`regimerain/exceed/model.py`); backtest only |
 | Districts | Not built (boundary licence, PRD §20) |
-| Replay runs: real held-out backtest days for the web (`regimerain run --source replay [--init DATE] [--publish NAME]`) | Built and tested (`regimerain/runs/replay.py`); needs the Kaggle backtest cache |
+| Replay runs: real held-out backtest days for the web (`regimerain run --source replay [--init DATE] [--publish NAME]`) | Built; two held-out days published (`mvp/web/public/run/hindcast-*`) |
 | `regimerain serve`: read-only API + built web app on one port | Built and tested (`regimerain/api/app.py`) |
-| `fit-final`: every model refit on all seasons → hashed model set (`regimerain/final.py`, `ModelSet` loader) | Built and tested |
+| `fit-final`: every model refit on all seasons → hashed model set (`regimerain/final.py`, `ModelSet` loader) | Built; model set `e0cae019e7f5` trained on Kaggle (dataset `ps26080-models`) |
 | Live GFS run: today's GFS through the model set, skill gate applied (`regimerain run --source gfs [--init DATE]`) | Built and tested (`regimerain/ingest/gfs.py`, `regimerain/runs/live.py`, explainer `docs/EXPLAINED_LIVE_GFS.md`); needs a model set from Kaggle |
 | Model-set run on an HRES init (`run --source hres`) | Not built (CLI exits 2 and names the plan section) |
 
-Pilot v1 headline: quantile mapping improves heavy-rain detection (Day 1, ≥64.5 mm: POD 0.171 → 0.204), but regime-aware QM does not yet beat global QM, because the classifier trains on one season per fold. Pilot v2 (`config/v2.yaml`, 7 seasons) is the next run.
+Pilot v2 headline (7 monsoons 2016-2022, leave-one-monsoon-out, Day 1-5): quantile mapping significantly improves heavy-rain detection at every lead (Day 1, ≥64.5 mm: ETS 0.084 → 0.092, POD 0.152 → 0.183, frequency bias 0.83 → 1.01). The regime classifier now reaches 0.63-0.73 accuracy on unseen seasons. Regime-aware QM is still not clearly better than global QM; that is reported, not hidden. Details and every caveat: `docs/PILOT_RESULTS.md`.
 
 `PRD.md` §18 has the build-phase order, `TECHNICAL_SPEC.md` §9 the CLI, `docs/MODEL_SPEC.md` §22 the model build checklist.
 

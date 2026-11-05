@@ -2039,11 +2039,11 @@ Runs 2a, 2b and 2c are independent. If your account allows several concurrent CP
 
 | Stage | Needs attached | Commands (run by the notebook) | Persists to `/kaggle/working` | Rough time on 4 cores |
 |---|---|---|---|---|
-| `data` | `ps26080-imd` | `ingest` (HRES → scratch, IBTrACS, MJO; IMD read from input), `static`, `label`, `features --leads 1-5` | `data/static`, `data/table`, label counts, logs (~2–4 GB) | 2–4 h (download-bound) |
-| `backtest` | `ps26080-imd`, `ps26080-table` | `backtest --variants raw,A,B,C --mode fast --folds <list>` | `cache/fold=<Y>/` with `DONE` markers | ~1.5–3 h per fold |
-| `final` | `ps26080-imd`, `ps26080-table`, all `ps26080-folds-*` | Copy fold caches into `cache/`, then `report`, `fit-final` | `reports/`, `models/<id>/` | 2–3 h |
+| `data` | `ps26080-imd` | `ingest` (HRES → scratch, IBTrACS, MJO; IMD read from input), `static`, `label`, `features --leads 1-5` | `data/static`, `data/table`, label counts, logs (~2–4 GB) | measured: 25.5 min with HRES attached (5 Nov 2026); downloading HRES inside this stage instead costs ~1–1.1 h per season |
+| `backtest` | `ps26080-imd`, `ps26080-table` | `backtest --variants raw,A,B,C --mode fast --folds <list>` | `cache/fold=<Y>/` with `DONE` markers | measured: 21–27 min per fold, peak RAM 12.1 GB (`--mode fast`, variants raw,A,B,C,CM) |
+| `final` | `ps26080-imd`, `ps26080-table`, all `ps26080-folds-*` | Copy fold caches into `cache/`, then `report`, `fit-final` | `reports/`, `models/<id>/` | measured: `report` 9.7 min (5.5 GB) + `fit-final` 11.1 min (10.4 GB) |
 
-The times are estimates to be replaced by measured ones. The notebook logs the wall-clock time of every command to `logs/`. If one fold takes under 2 h, put 4–5 folds in a chunk.
+Times measured on the 5 Nov 2026 run (Kaggle CPU, 4 cores, 33.7 GB RAM, commit `11aeaf9`), from `logs/timings.tsv`. The `hres` stage took 3 h 6 min for 3 seasons and 4 h 21 min for 4. At ~25 min per fold, all 7 folds fit in one 12 h session; the run used three parallel chunks (2016–2018, 2019–2020, 2021–2022), which finished in about 1 h.
 
 ### 24.5 Rules that keep the Kaggle runs honest
 
